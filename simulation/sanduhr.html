@@ -1,0 +1,526 @@
+<title>Sanduhr auf 16×32</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@400;500;600&display=swap">
+<style>
+/* Layout: Werkbank – links die gekippte Sanduhr auf dunklem Grund, rechts das Bedienfeld. Bewusst nur dunkel: LEDs wirken nur auf Schwarz. */
+:root {
+  --bg: #0d0c0b;
+  --panel: #161411;
+  --line: #2a2620;
+  --fg: #e6dfd4;
+  --muted: #8f8577;
+  --accent: #f0a63a;
+  --warn: #ffc56b;
+  --bad: #ff6b5e;
+  --font-ui: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-num: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font-ui); font-size: 15px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 28px;
+}
+.wrap { max-width: 1120px; margin: 0 auto; display: grid; gap: 18px; }
+header h1 { font-size: 26px; font-weight: 600; margin: 0; letter-spacing: 0.01em; text-wrap: balance; }
+header p { margin: 4px 0 0; color: var(--muted); max-width: 68ch; }
+.main { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 22px; align-items: start; }
+@media (max-width: 820px) { .main { grid-template-columns: minmax(0, 1fr); } }
+
+.stage-box { min-width: 0; display: grid; gap: 8px; }
+#stage {
+  position: relative; width: 100%; max-width: 100%; touch-action: none; cursor: grab;
+  border: 1px solid var(--line); border-radius: 6px; background: radial-gradient(circle at 50% 50%, #17130f 0%, var(--bg) 70%);
+  overflow: hidden;
+}
+#stage.drag { cursor: grabbing; }
+#board { position: absolute; left: 50%; top: 50%; transform-origin: 50% 50%; }
+.clock { position: absolute; left: 14px; top: 10px; font-family: var(--font-num); font-size: 28px; font-variant-numeric: tabular-nums; color: var(--accent); pointer-events: none; }
+.clock small { display: block; font-size: 11px; color: var(--muted); font-family: var(--font-ui); text-transform: uppercase; letter-spacing: 0.08em; }
+.gravity { position: absolute; right: 12px; bottom: 10px; font-family: var(--font-num); font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; pointer-events: none; }
+.hint { color: var(--muted); font-size: 13px; }
+
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 14px; display: grid; gap: 16px; min-width: 0; }
+.group { display: grid; gap: 8px; }
+.label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); display: flex; justify-content: space-between; align-items: baseline; }
+.label output { font-family: var(--font-num); text-transform: none; letter-spacing: 0; color: var(--fg); font-size: 13px; }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--line); border-radius: 5px; overflow: hidden; }
+.seg button { border: 0; background: transparent; color: var(--muted); font: 500 14px var(--font-ui); padding: 7px 6px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: #241e16; color: var(--fg); box-shadow: inset 0 -2px 0 var(--accent); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn { flex: 1 1 auto; border: 1px solid var(--line); background: #1e1a15; color: var(--fg); font: 500 14px var(--font-ui); padding: 8px 10px; border-radius: 5px; cursor: pointer; }
+.btn[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+
+.meter { border-top: 1px solid var(--line); padding-top: 12px; display: grid; gap: 6px; font-size: 14px; }
+.meter div { display: flex; justify-content: space-between; gap: 10px; }
+.meter span:last-child { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+.meter .sum { border-top: 1px dashed var(--line); padding-top: 6px; font-weight: 600; }
+.bar { height: 6px; background: #221d17; border-radius: 3px; overflow: hidden; }
+.bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .15s; }
+.bar.over i { background: var(--bad); }
+.note { font-size: 13px; color: var(--muted); }
+.note.warn { color: var(--warn); }
+.foot { color: var(--muted); font-size: 13px; max-width: 75ch; }
+.foot b { color: var(--fg); font-weight: 500; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Sanduhr auf 16×32</h1>
+    <p>Zwei 16×16-Matrizen übereinander, als Sanduhr oder als Uhr. In der Sanduhr ist jedes Sandkorn eine LED, und durch den Hals rieselt nur so viel, wie die Laufzeit erlaubt. In der Uhr bleibt die 12 immer oben, egal wie die Matrix gedreht wird.</p>
+  </header>
+
+  <div class="main">
+    <div class="stage-box">
+      <div id="stage" aria-label="Sanduhr, zum Kippen ziehen">
+        <canvas id="board"></canvas>
+        <div class="clock"><small id="clock-label">Restzeit</small><span id="rest">–</span></div>
+        <div class="gravity"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M7 1v10M3 7l4 5 4-5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>Schwerkraft</div>
+      </div>
+      <div class="hint">Am Bild ziehen dreht die Sanduhr. Die Schwerkraft zeigt immer nach unten.</div>
+    </div>
+
+    <div class="panel">
+      <div class="group">
+        <div class="label">Modus</div>
+        <div class="seg" role="group" aria-label="Modus">
+          <button id="mode-sand" aria-pressed="true">Sanduhr</button>
+          <button id="mode-uhr" aria-pressed="false">Uhr</button>
+          <button id="mode-ball" aria-pressed="false">Ball</button>
+        </div>
+      </div>
+
+      <div class="group" data-sand>
+        <div class="row">
+          <button class="btn" id="flip">Umdrehen</button>
+          <button class="btn" id="auto" aria-pressed="false">Automatisch umdrehen</button>
+        </div>
+      </div>
+
+      <div class="group">
+        <label class="label" for="tilt">Neigung <output id="tilt-out">0°</output></label>
+        <input id="tilt" type="range" min="-180" max="180" step="1" value="0">
+        <div class="row" data-sand><button class="btn" id="shake">Schütteln</button></div>
+        <div class="row" data-uhr hidden><button class="btn" id="spin" aria-pressed="false">Langsam drehen</button></div>
+        <div class="row" data-ball hidden><button class="btn" id="kick">Anstoßen</button><button class="btn" id="spin2" aria-pressed="false">Langsam drehen</button></div>
+      </div>
+
+      <div class="group" data-ball hidden>
+        <label class="label" for="wild">Wildheit <output id="wild-out">hoch</output></label>
+        <input id="wild" type="range" min="0" max="2" step="1" value="2">
+      </div>
+
+      <div class="group" data-sand>
+        <label class="label" for="dur">Laufzeit <output id="dur-out">0:30</output></label>
+        <input id="dur" type="range" min="0" max="7" step="1" value="1">
+      </div>
+
+      <div class="group" data-sand>
+        <label class="label" for="fill">Sandmenge <output id="fill-out">80 %</output></label>
+        <input id="fill" type="range" min="30" max="100" step="5" value="80">
+      </div>
+
+      <div class="group">
+        <label class="label" for="bright">Helligkeit <output id="bright-out">100 %</output></label>
+        <input id="bright" type="range" min="5" max="100" step="5" value="100">
+      </div>
+
+      <div class="group">
+        <div class="label">Netzteil</div>
+        <div class="seg" role="group" aria-label="Netzteil">
+          <button id="psu-05" aria-pressed="true">0,5 A</button>
+          <button id="psu-20" aria-pressed="false">20 A</button>
+        </div>
+      </div>
+
+      <div class="meter" aria-live="off">
+        <div><span>LEDs, Farbe</span><span id="m-color">–</span></div>
+        <div><span>LEDs, Ruhestrom (512)</span><span id="m-idle">–</span></div>
+        <div><span>ESP32 mit WLAN</span><span>≈ 150 mA</span></div>
+        <div class="sum"><span>Gesamt</span><span id="m-total">–</span></div>
+        <div class="bar" id="m-bar"><i></i></div>
+        <div><span>Gedimmt durch Begrenzung</span><span id="m-dim">–</span></div>
+        <div class="note" id="m-note"></div>
+      </div>
+    </div>
+  </div>
+
+  <p class="foot"><b>Ball:</b> Ein Ball mit gut drei LEDs Durchmesser, die Schwerkraft folgt der Neigung. Er prallt an den Rändern der Matrix ab und verliert dabei kaum Schwung. Kommt er trotzdem zur Ruhe, bekommt er einen Schubs. Der Schweif entsteht, weil jede LED nach dem Ball nur langsam ausgeht.</p>
+  <p class="foot"><b>Uhr:</b> Das Zifferblatt hat 16 LEDs Durchmesser und sitzt in der Mitte, damit es in jeder Lage passt. Jeder Zeiger ist eine Linie, die gegen die Neigung der Matrix gedreht wird. Jede LED leuchtet so stark, wie viel der Linie über ihr liegt. Dadurch gleiten die Zeiger weich über das grobe Raster, statt von LED zu LED zu springen. Auf dem ESP32 kommt die Neigung vom Beschleunigungssensor.</p>
+  <p class="foot"><b>So wird gerechnet:</b> Jedes Korn hat eine Position und eine Geschwindigkeit, fällt mit der Schwerkraft und prallt an Wänden und anderen Körnern ab. Liegt es auf, rollt es schräg nach unten weg, wenn dort Platz ist. So entstehen Haufen mit 45° Böschung. Der Hals ist 2 LEDs breit. Damit die Uhr die Zeit hält, darf nur ein Korn nach dem anderen hindurch, im Takt der Laufzeit. Strom: 20 mA je Farbkanal bei Vollausschlag, 0,5 mA Ruhestrom je LED, 60 % Obergrenze, Gamma 2,8, am 0,5-A-Netzteil 100 mA für Farbe.</p>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const W = 16, H = 32;
+  const G = 140;            // Schwerkraft in LEDs/s²
+  const SUB = 2, DT = 1 / 60 / SUB;
+  const MAXV = 0.9 / DT;    // höchstens 0,9 LED je Teilschritt
+  const BOUNCE = 0.35;
+  const MAXC = 0.6, GAMMA = 2.8, MA_CH = 20, MA_IDLE = 0.5, MA_ESP = 150, BUDGET_05 = 100;
+  const RAW_MAX = 255 * Math.pow(MAXC, GAMMA);
+  const SAND = [255, 160, 40], GLASS = [55, 70, 95];
+  const DURS = [15, 30, 60, 120, 180, 300, 600, 900];
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // ---------- Glasform ----------
+  // halbe Innenbreite je Zeile: Hals 2 LEDs, Kolben bis 14 LEDs, Enden etwas gerundet
+  const inside = new Uint8Array(W * H), wall = new Uint8Array(W * H);
+  const idx = (x, y) => x * H + y;
+  for (let y = 0; y < H; y++) {
+    const d = Math.abs(y + 0.5 - H / 2);          // 0,5 … 15,5
+    let hw = 1 + 6 * Math.pow(Math.min(1, (d - 0.5) / 8), 0.75);
+    if (d > 14.5) hw -= 1.5; else if (d > 13.5) hw -= 0.5;
+    for (let x = 0; x < W; x++) if (Math.abs(x + 0.5 - W / 2) < hw) inside[idx(x, y)] = 1;
+  }
+  for (let x = 0; x < W; x++) for (let y = 0; y < H; y++) {
+    if (inside[idx(x, y)]) continue;
+    let near = false;
+    for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
+      const u = x + a, v = y + b;
+      if (u >= 0 && v >= 0 && u < W && v < H && inside[idx(u, v)]) near = true;
+    }
+    if (near) wall[idx(x, y)] = 1;
+  }
+  const upperCells = [];
+  for (let y = H / 2 - 1; y >= 0; y--) for (let x = 0; x < W; x++) if (inside[idx(x, y)]) upperCells.push([x, y]);
+
+  // ---------- Zustand ----------
+  let mode = "sand", spin = false;
+  let tilt = 0, auto = false, psu = "05", bright = 1, fillPct = 0.8, dur = 30;
+  let grains = [], occ = new Int32Array(W * H), tokens = 0, flipAnim = null, idleT = 0;
+
+  function fill() {
+    occ.fill(0); grains = [];
+    const n = Math.round(upperCells.length * fillPct);
+    for (let k = 0; k < n; k++) {
+      const [x, y] = upperCells[k];
+      const g = { x: x + 0.5, y: y + 0.5, vx: 0, vy: 0, shade: 0.8 + Math.random() * 0.35 };
+      grains.push(g); occ[idx(x, y)] = grains.length;
+    }
+    // Sand liegt oben in der Welt: bei gedrehtem Glas oben = Seite gegen die Schwerkraft
+    const th = tilt * Math.PI / 180;
+    if (Math.cos(th) < 0) for (const g of grains) { g.y = H - g.y; g.x = W - g.x; }
+    occ.fill(0); grains.forEach((g, i) => occ[idx(Math.floor(g.x), Math.floor(g.y))] = i + 1);
+    tokens = 0;
+  }
+
+  const free = (x, y) => x >= 0 && y >= 0 && x < W && y < H && inside[idx(x, y)] && !occ[idx(x, y)];
+  const half = (y) => (y < H / 2 ? 0 : 1);
+
+  function step(gx, gy) {
+    const gl = Math.hypot(gx, gy) || 1, dx = gx / gl, dy = gy / gl;
+    // untere Körner zuerst bewegen, damit Säulen nachrutschen
+    grains.sort((a, b) => (b.x * dx + b.y * dy) - (a.x * dx + a.y * dy));
+    for (let i = 0; i < grains.length; i++) occ[idx(Math.floor(grains[i].x), Math.floor(grains[i].y))] = i + 1;
+    let moved = 0;
+    for (let i = 0; i < grains.length; i++) {
+      const g = grains[i];
+      // Liegt das Korn auf (Feld in Fallrichtung belegt oder Hals gesperrt), bremst die Reibung es ab
+      const fx = Math.floor(g.x), fy = Math.floor(g.y);
+      const bx = fx + Math.round(dx), by = fy + Math.round(dy);
+      const bCross = by !== fy && half(by) !== half(fy);
+      const supported = !free(bx, by) || (bCross && tokens < 1);
+      if (supported) { g.vx *= 0.2; g.vy *= 0.2; }
+      else { g.vx += (Math.random() - 0.5) * 0.6; g.vy += (Math.random() - 0.5) * 0.6; }
+      g.vx += gx * DT; g.vy += gy * DT;
+      const sp = Math.hypot(g.vx, g.vy); if (sp > MAXV) { g.vx *= MAXV / sp; g.vy *= MAXV / sp; }
+      const cx = Math.floor(g.x), cy = Math.floor(g.y);
+      let nx = g.x + g.vx * DT, ny = g.y + g.vy * DT;
+      let tx = Math.floor(nx), ty = Math.floor(ny);
+      if (tx === cx && ty === cy) { g.x = nx; g.y = ny; continue; }
+      const crossing = (ty !== cy) && half(ty) !== half(cy);
+      const gateOk = !crossing || tokens >= 1;
+      const go = (x, y, px, py) => {
+        if (half(y) !== half(cy)) tokens -= 1;
+        occ[idx(cx, cy)] = 0; occ[idx(x, y)] = i + 1; g.x = px; g.y = py; moved++;
+      };
+      if (gateOk && free(tx, ty)) { go(tx, ty, nx, ny); continue; }
+      // nur eine Achse versuchen
+      if (tx !== cx && free(tx, cy)) { g.vy *= -BOUNCE; go(tx, cy, nx, cy + 0.5); continue; }
+      if (ty !== cy && (!crossing || gateOk) && free(cx, ty)) { g.vx *= -BOUNCE; go(cx, ty, cx + 0.5, ny); continue; }
+      // blockiert: abprallen, im Feld bleiben
+      if (tx !== cx) g.vx *= -BOUNCE; if (ty !== cy) g.vy *= -BOUNCE;
+      g.x = Math.min(cx + 0.999, Math.max(cx + 0.001, nx)); g.y = Math.min(cy + 0.999, Math.max(cy + 0.001, ny));
+      // aufliegend: schräg nach unten abrollen, wenn dort Platz ist
+      const a = Math.atan2(dy, dx), side = Math.random() < 0.5 ? 1 : -1;
+      for (const s of [side, -side]) {
+        const ax = cx + Math.round(Math.cos(a + s * Math.PI / 4)), ay = cy + Math.round(Math.sin(a + s * Math.PI / 4));
+        const cr = ay !== cy && half(ay) !== half(cy);
+        if ((!cr || tokens >= 1) && free(ax, ay) && Math.random() < 0.6) {
+          go(ax, ay, ax + 0.5, ay + 0.5); g.vx = dx * 3; g.vy = dy * 3; break;
+        }
+      }
+    }
+    return moved;
+  }
+
+  // ---------- LEDs & Strom ----------
+  const led = new Float32Array(3 * W * H);
+  function computeLeds() {
+    led.fill(0);
+    for (let c = 0; c < W * H; c++) if (wall[c]) { led[3 * c] = GLASS[0]; led[3 * c + 1] = GLASS[1]; led[3 * c + 2] = GLASS[2]; }
+    for (const g of grains) {
+      const c = idx(Math.floor(g.x), Math.floor(g.y));
+      led[3 * c] = Math.min(255, SAND[0] * g.shade); led[3 * c + 1] = Math.min(255, SAND[1] * g.shade); led[3 * c + 2] = SAND[2] * g.shade;
+    }
+  }
+  // ---------- Ball ----------
+  const BR = 1.7, BG = 70;
+  const WILD = [{ e: 0.75, kick: 0, name: "ruhig" }, { e: 0.86, kick: 25, name: "mittel" }, { e: 0.95, kick: 45, name: "hoch" }];
+  let wild = 2, bounces = 0;
+  const ball = { x: 8, y: 6, vx: 21, vy: -8, hue: 0 };
+  const trail = new Float32Array(3 * W * H);
+  function hsv(h) {
+    const k = (n) => (n + h / 60) % 6, f = (n) => 255 * (1 - Math.max(0, Math.min(k(n), 4 - k(n), 1)));
+    return [f(5), f(3), f(1)];
+  }
+  function kickBall(strength) {
+    const th = tilt * Math.PI / 180, ux = -Math.sin(th), uy = -Math.cos(th);   // gegen die Schwerkraft
+    const side = (Math.random() - 0.5) * 2;
+    ball.vx += (ux - uy * side) * strength; ball.vy += (uy + ux * side) * strength;
+  }
+  let restT = 0;
+  function ballStep(dtF) {
+    const th = tilt * Math.PI / 180, gx = BG * Math.sin(th), gy = BG * Math.cos(th), w = WILD[wild];
+    const n = 4, dt = dtF / n;
+    for (let k = 0; k < n; k++) {
+      ball.vx += gx * dt; ball.vy += gy * dt;
+      ball.x += ball.vx * dt; ball.y += ball.vy * dt;
+      let hit = false;
+      if (ball.x < BR) { ball.x = BR; if (ball.vx < 0) { ball.vx = -ball.vx * w.e; hit = Math.abs(ball.vx) > 4; } }
+      if (ball.x > W - BR) { ball.x = W - BR; if (ball.vx > 0) { ball.vx = -ball.vx * w.e; hit = Math.abs(ball.vx) > 4; } }
+      if (ball.y < BR) { ball.y = BR; if (ball.vy < 0) { ball.vy = -ball.vy * w.e; hit = Math.abs(ball.vy) > 4; } }
+      if (ball.y > H - BR) { ball.y = H - BR; if (ball.vy > 0) { ball.vy = -ball.vy * w.e; hit = Math.abs(ball.vy) > 4; } }
+      if (hit) { bounces++; ball.hue = (ball.hue + 47) % 360; }
+    }
+    // liegt er fast still, gibt es einen Schubs (außer bei "ruhig")
+    if (Math.hypot(ball.vx, ball.vy) < 6) restT += dtF; else restT = 0;
+    if (w.kick > 0 && restT > 0.4) { restT = 0; kickBall(w.kick * (0.8 + Math.random() * 0.5)); }
+  }
+  function ballLeds() {
+    for (let i = 0; i < trail.length; i++) trail[i] *= 0.80;
+    const col = hsv(ball.hue);
+    const x0 = Math.max(0, Math.floor(ball.x - BR - 1)), x1 = Math.min(W - 1, Math.ceil(ball.x + BR + 1));
+    const y0 = Math.max(0, Math.floor(ball.y - BR - 1)), y1 = Math.min(H - 1, Math.ceil(ball.y + BR + 1));
+    for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) {
+      const k = Math.max(0, Math.min(1, BR + 0.5 - Math.hypot(x + 0.5 - ball.x, y + 0.5 - ball.y)));
+      if (k <= 0) continue;
+      const c = 3 * idx(x, y);
+      for (let j = 0; j < 3; j++) trail[c + j] = Math.max(trail[c + j], col[j] * k);
+    }
+    led.set(trail);
+  }
+
+  // ---------- Uhr ----------
+  const CX = W / 2, CY = H / 2, RIM = 7.0;
+  const HOUR = [255, 150, 40], MIN = [235, 240, 255], SEC = [255, 40, 30], MARK = [55, 70, 95], MARK12 = [120, 140, 170];
+  function segDist(px, py, ax, ay, bx, by) {
+    const vx = bx - ax, vy = by - ay, wx = px - ax, wy = py - ay;
+    const t = Math.max(0, Math.min(1, (wx * vx + wy * vy) / (vx * vx + vy * vy)));
+    return Math.hypot(wx - t * vx, wy - t * vy);
+  }
+  function add(c, col, k) {
+    if (k <= 0) return;
+    for (let j = 0; j < 3; j++) led[3 * c + j] = Math.min(255, led[3 * c + j] + col[j] * k);
+  }
+  function clockLeds() {
+    led.fill(0);
+    const now = new Date();
+    const sec = now.getSeconds() + now.getMilliseconds() / 1000;
+    const min = now.getMinutes() + sec / 60, hr = (now.getHours() % 12) + min / 60;
+    // Winkel im Uhrzeigersinn ab 12; gegen die Drehung der Matrix ausgleichen
+    const dir = (deg) => { const a = (deg - tilt) * Math.PI / 180; return [Math.sin(a), -Math.cos(a)]; };
+    const hands = [
+      { d: dir(hr * 30), len: 4.3, w: 0.6, col: HOUR },
+      { d: dir(min * 6), len: 6.4, w: 0.42, col: MIN },
+    ];
+    const marks = [];
+    for (let k = 0; k < 12; k++) { const [dx, dy] = dir(k * 30); marks.push([CX + dx * RIM, CY + dy * RIM, k === 0 ? MARK12 : MARK, k % 3 === 0 ? 0.75 : 0.55]); }
+    const [sx, sy] = dir(sec * 6);
+    const secDot = [CX + sx * RIM, CY + sy * RIM];
+    for (let x = 0; x < W; x++) for (let y = 0; y < H; y++) {
+      const px = x + 0.5, py = y + 0.5, c = idx(x, y);
+      if (Math.hypot(px - CX, py - CY) > 8.2) continue;
+      for (const [mx, my, col, r0] of marks) add(c, col, r0 + 0.5 - Math.hypot(px - mx, py - my));
+      for (const h of hands) add(c, h.col, h.w + 0.5 - segDist(px, py, CX, CY, CX + h.d[0] * h.len, CY + h.d[1] * h.len));
+      add(c, SEC, 0.95 - Math.hypot(px - secDot[0], py - secDot[1]));
+    }
+  }
+
+  const raw = (v, f) => 255 * Math.pow(Math.min(255, v * bright * MAXC * f) / 255, GAMMA);
+  function colorCurrent(f) { let s = 0; for (let i = 0; i < led.length; i++) if (led[i] > 0) s += raw(led[i], f); return s * MA_CH / 255; }
+  let dimF = 1, lastMa = 0;
+  function limit() {
+    let ma = colorCurrent(1), f = 1;
+    if (psu === "05" && ma > BUDGET_05) {
+      let lo = 0, hi = 1;
+      for (let k = 0; k < 14; k++) { const m = (lo + hi) / 2; if (colorCurrent(m) > BUDGET_05) hi = m; else lo = m; }
+      f = lo; ma = colorCurrent(f);
+    }
+    dimF = f; lastMa = ma;
+  }
+
+  // ---------- Zeichnen ----------
+  const stage = document.getElementById("stage"), cv = document.getElementById("board"), ctx = cv.getContext("2d");
+  let pitch = 16, pad = 8, dpr = 1;
+  function layoutCanvas() {
+    const avail = stage.clientWidth;
+    const maxH = Math.max(320, Math.min(window.innerHeight * 0.8, 820));
+    pitch = Math.max(6, Math.floor(Math.min(avail, maxH) / Math.hypot(W + 1, H + 1)));
+    pad = Math.round(pitch * 0.5);
+    const bw = W * pitch + 2 * pad, bh = H * pitch + 2 * pad;
+    stage.style.height = Math.ceil(Math.hypot(bw, bh)) + 8 + "px";
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    cv.width = bw * dpr; cv.height = bh * dpr; cv.style.width = bw + "px"; cv.style.height = bh + "px";
+    cv.style.marginLeft = -bw / 2 + "px"; cv.style.marginTop = -bh / 2 + "px";
+  }
+  const scr = (v) => Math.round(255 * Math.pow(raw(v, dimF) / RAW_MAX, 1 / 2.2));
+  function draw() {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const bw = W * pitch + 2 * pad, bh = H * pitch + 2 * pad;
+    ctx.clearRect(0, 0, bw, bh);
+    ctx.fillStyle = "#050404";
+    ctx.fillRect(pad * 0.4, pad * 0.4, bw - pad * 0.8, bh / 2 - pad * 0.45);
+    ctx.fillRect(pad * 0.4, bh / 2 + pad * 0.05, bw - pad * 0.8, bh / 2 - pad * 0.45);
+    const rr = pitch * 0.36, rg = pitch * 0.62;
+    for (let x = 0; x < W; x++) for (let y = 0; y < H; y++) {
+      const c = idx(x, y), cx = pad + (x + 0.5) * pitch, cy = pad + (y + 0.5) * pitch;
+      ctx.fillStyle = "#15120f"; ctx.fillRect(cx - pitch * 0.38, cy - pitch * 0.38, pitch * 0.76, pitch * 0.76);
+      const r0 = led[3 * c], g0 = led[3 * c + 1], b0 = led[3 * c + 2];
+      if (r0 + g0 + b0 <= 0) continue;
+      const sr = scr(r0), sg = scr(g0), sb = scr(b0);
+      if (sr + sg + sb < 3) continue;
+      ctx.fillStyle = `rgba(${sr},${sg},${sb},0.22)`; ctx.beginPath(); ctx.arc(cx, cy, rg, 0, 6.2832); ctx.fill();
+      ctx.fillStyle = `rgb(${sr},${sg},${sb})`; ctx.beginPath(); ctx.arc(cx, cy, rr, 0, 6.2832); ctx.fill();
+    }
+  }
+
+  // ---------- Anzeigen ----------
+  const $ = (id) => document.getElementById(id);
+  const fmt = (ma) => ma >= 1000 ? (ma / 1000).toFixed(2).replace(".", ",") + " A" : Math.round(ma) + " mA";
+  const mmss = (s) => { s = Math.max(0, Math.ceil(s)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
+  function upperCount() {
+    // "oben" in der Welt: die Hälfte, die gegen die Schwerkraft liegt
+    const up = Math.cos(tilt * Math.PI / 180) >= 0 ? 0 : 1;
+    let n = 0; for (const g of grains) if (half(Math.floor(g.y)) === up) n++; return n;
+  }
+  function meter() {
+    const idle = W * H * MA_IDLE, total = lastMa + idle + MA_ESP;
+    $("m-color").textContent = fmt(lastMa); $("m-idle").textContent = fmt(idle); $("m-total").textContent = fmt(total);
+    $("m-dim").textContent = Math.round((1 - dimF) * 100) + " %";
+    const cap = psu === "05" ? 500 : 20000, bar = $("m-bar");
+    bar.querySelector("i").style.width = Math.min(100, total / cap * 100) + "%"; bar.classList.toggle("over", total > cap);
+    const note = $("m-note");
+    if (psu === "05" && total > 500) { note.className = "note warn"; note.textContent = `Über 0,5 A: Allein der Ruhestrom der 512 LEDs und der ESP brauchen ${fmt(idle + MA_ESP)}. Für die Sanduhr braucht es das große Netzteil.`; }
+    else if (psu === "05") { note.className = "note"; note.textContent = "Wie in der Firmware: Farbe auf 100 mA begrenzt."; }
+    else { note.className = "note"; note.textContent = "Am 20-A-Netzteil begrenzt nur die feste 60-%-Obergrenze."; }
+    if (mode === "ball") $("rest").textContent = String(bounces);
+    else if (mode === "uhr") {
+      const d = new Date();
+      $("rest").textContent = [d.getHours(), d.getMinutes(), d.getSeconds()].map((v) => String(v).padStart(2, "0")).join(":");
+    } else $("rest").textContent = mmss(upperCount() / (rate() || 1));
+  }
+  const rate = () => Math.max(1, Math.round(upperCells.length * fillPct)) / dur;
+
+  // ---------- Bedienung ----------
+  function setTilt(t, fromSlider) {
+    t = ((t + 180) % 360 + 360) % 360 - 180; tilt = t;
+    cv.style.transform = `rotate(${t}deg)`;
+    if (!fromSlider) $("tilt").value = Math.round(t);
+    $("tilt-out").textContent = Math.round(t) + "°";
+  }
+  function startFlip() {
+    if (flipAnim) return;
+    flipAnim = { from: tilt, to: tilt + 180, t: 0 };
+  }
+  function setAuto(on) { auto = on; $("auto").setAttribute("aria-pressed", on); idleT = 0; }
+  function setMode(m) {
+    mode = m;
+    for (const k of ["sand", "uhr", "ball"]) {
+      $("mode-" + k).setAttribute("aria-pressed", m === k);
+      document.querySelectorAll("[data-" + k + "]").forEach((el) => (el.hidden = m !== k));
+    }
+    $("clock-label").textContent = { sand: "Restzeit", uhr: "Uhrzeit", ball: "Aufpraller" }[m];
+    if (m === "ball") { trail.fill(0); bounces = 0; kickBall(30); }
+    flipAnim = null; setSpin(false);
+    if (m === "sand") fill();
+  }
+  function setSpin(on) { spin = on; $("spin").setAttribute("aria-pressed", on); $("spin2").setAttribute("aria-pressed", on); }
+  $("mode-sand").onclick = () => setMode("sand");
+  $("mode-uhr").onclick = () => setMode("uhr");
+  $("spin").onclick = () => setSpin(!spin);
+  $("spin2").onclick = () => setSpin(!spin);
+  $("mode-ball").onclick = () => setMode("ball");
+  $("kick").onclick = () => kickBall(50);
+  $("wild").oninput = (e) => { wild = +e.target.value; $("wild-out").textContent = WILD[wild].name; };
+  $("flip").onclick = startFlip;
+  $("auto").onclick = () => setAuto(!auto);
+  $("tilt").oninput = (e) => { flipAnim = null; setSpin(false); setTilt(+e.target.value, true); };
+  $("shake").onclick = () => { for (const g of grains) { g.vx += (Math.random() - 0.5) * 60; g.vy += (Math.random() - 0.5) * 60; } };
+  $("dur").oninput = (e) => { dur = DURS[+e.target.value]; $("dur-out").textContent = mmss(dur); };
+  $("fill").oninput = (e) => { fillPct = +e.target.value / 100; $("fill-out").textContent = e.target.value + " %"; fill(); };
+  $("bright").oninput = (e) => { bright = +e.target.value / 100; $("bright-out").textContent = e.target.value + " %"; };
+  const setPsu = (v) => { psu = v; $("psu-05").setAttribute("aria-pressed", v === "05"); $("psu-20").setAttribute("aria-pressed", v === "20"); };
+  $("psu-05").onclick = () => setPsu("05"); $("psu-20").onclick = () => setPsu("20");
+
+  let drag = null;
+  stage.addEventListener("pointerdown", (e) => {
+    const r = stage.getBoundingClientRect();
+    drag = { cx: r.left + r.width / 2, cy: r.top + r.height / 2, t0: tilt };
+    drag.a0 = Math.atan2(e.clientY - drag.cy, e.clientX - drag.cx);
+    flipAnim = null; setSpin(false); stage.setPointerCapture(e.pointerId); stage.classList.add("drag");
+  });
+  stage.addEventListener("pointermove", (e) => {
+    if (!drag) return;
+    setTilt(drag.t0 + (Math.atan2(e.clientY - drag.cy, e.clientX - drag.cx) - drag.a0) * 180 / Math.PI);
+  });
+  const endDrag = () => { drag = null; stage.classList.remove("drag"); };
+  stage.addEventListener("pointerup", endDrag); stage.addEventListener("pointercancel", endDrag);
+  window.addEventListener("resize", () => { layoutCanvas(); draw(); });
+
+  // ---------- Schleife ----------
+  let last = performance.now(), meterT = 0;
+  function frame(now) {
+    const dtF = Math.min(0.05, (now - last) / 1000); last = now;
+    if (flipAnim) {
+      flipAnim.t += dtF / 1.2;
+      const p = Math.min(1, flipAnim.t), e = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+      setTilt(flipAnim.from + (flipAnim.to - flipAnim.from) * e);
+      if (p >= 1) flipAnim = null;
+    }
+    if (mode === "uhr" || mode === "ball") {
+      if (spin) setTilt(tilt + 24 * dtF);
+      if (mode === "uhr") clockLeds(); else { ballStep(dtF); ballLeds(); }
+      limit(); draw();
+      meterT += dtF; if (meterT > 0.25) { meterT = 0; meter(); }
+      requestAnimationFrame(frame);
+      return;
+    }
+    tokens = Math.min(1.5, tokens + rate() * dtF);
+    const th = tilt * Math.PI / 180, gx = G * Math.sin(th), gy = G * Math.cos(th);
+    let moved = 0;
+    for (let s = 0; s < SUB; s++) moved += step(gx, gy);
+    if (auto && !flipAnim) {
+      // oben leer: noch kurz nachrieseln lassen, dann umdrehen
+      if (upperCount() === 0) idleT += dtF; else idleT = 0;
+      if (idleT > 2) { idleT = 0; startFlip(); }
+    }
+    computeLeds(); limit(); draw();
+    meterT += dtF; if (meterT > 0.25) { meterT = 0; meter(); }
+    requestAnimationFrame(frame);
+  }
+
+  layoutCanvas(); setTilt(0); fill(); computeLeds(); limit(); draw(); meter();
+  if (!reduceMotion) setAuto(true);
+  requestAnimationFrame(frame);
+})();
+</script>

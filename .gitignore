@@ -1,0 +1,4 @@
+.pio/
+*.pem
+*.der
+/build/

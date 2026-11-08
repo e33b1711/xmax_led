@@ -1,0 +1,596 @@
+<title>Glas auf 8×32</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@400;500;600&display=swap">
+<style>
+/* Layout: Werkbank – links die gekippte Matrix auf dunklem Grund, rechts das Bedienfeld wie ein Laborprotokoll. Bewusst nur dunkel: LEDs wirken nur auf Schwarz. */
+:root {
+  --bg: #0b0e12;
+  --panel: #12171d;
+  --line: #222b35;
+  --fg: #d8dee6;
+  --muted: #7d8a99;
+  --accent: #4ea2ff;
+  --warn: #ffb547;
+  --bad: #ff6b5e;
+  --font-ui: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-num: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font-ui); font-size: 15px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 28px;
+}
+.wrap { max-width: 1120px; margin: 0 auto; display: grid; gap: 18px; }
+header h1 { font-size: 26px; font-weight: 600; margin: 0; letter-spacing: 0.01em; text-wrap: balance; }
+header p { margin: 4px 0 0; color: var(--muted); max-width: 68ch; }
+.main { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 22px; align-items: start; }
+@media (max-width: 820px) { .main { grid-template-columns: minmax(0, 1fr); } }
+
+.stage-box { min-width: 0; display: grid; gap: 8px; }
+#stage {
+  position: relative; width: 100%; max-width: 100%; touch-action: none; cursor: grab;
+  border: 1px solid var(--line); border-radius: 6px; background: radial-gradient(circle at 50% 50%, #10161d 0%, var(--bg) 70%);
+  overflow: hidden;
+}
+#stage.drag { cursor: grabbing; }
+#board { position: absolute; left: 50%; top: 50%; transform-origin: 50% 50%; }
+.gravity { position: absolute; right: 12px; bottom: 10px; font-family: var(--font-num); font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; pointer-events: none; }
+.hint { color: var(--muted); font-size: 13px; }
+
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 14px; display: grid; gap: 16px; min-width: 0; }
+.group { display: grid; gap: 8px; }
+.label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); display: flex; justify-content: space-between; align-items: baseline; }
+.label output { font-family: var(--font-num); text-transform: none; letter-spacing: 0; color: var(--fg); font-size: 13px; }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--line); border-radius: 5px; overflow: hidden; }
+.seg button { border: 0; background: transparent; color: var(--muted); font: 500 14px var(--font-ui); padding: 7px 6px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: #1b2632; color: var(--fg); box-shadow: inset 0 -2px 0 var(--accent); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn { flex: 1 1 auto; border: 1px solid var(--line); background: #17202a; color: var(--fg); font: 500 14px var(--font-ui); padding: 8px 10px; border-radius: 5px; cursor: pointer; }
+.btn[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+
+.meter { border-top: 1px solid var(--line); padding-top: 12px; display: grid; gap: 6px; font-size: 14px; }
+.meter div { display: flex; justify-content: space-between; gap: 10px; }
+.meter span:last-child { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+.meter .sum { border-top: 1px dashed var(--line); padding-top: 6px; font-weight: 600; }
+.bar { height: 6px; background: #1a222c; border-radius: 3px; overflow: hidden; }
+.bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .15s; }
+.bar.over i { background: var(--bad); }
+.note { font-size: 13px; color: var(--muted); }
+.note.warn { color: var(--warn); }
+.foot { color: var(--muted); font-size: 13px; max-width: 75ch; }
+.foot b { color: var(--fg); font-weight: 500; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Glas auf 8×32</h1>
+    <p>Die ganze 8×32-Matrix ist ein Glas: Ränder und Boden sind die Wände, oben ist es offen. Kippe es, und das Wasser läuft oben heraus. Steht es wieder gerade, läuft von oben neues nach. Gerechnet wird fein und dann auf die echten LEDs heruntergerechnet, mit Gamma-Korrektur und Strombegrenzung wie in der Firmware.</p>
+  </header>
+
+  <div class="main">
+    <div class="stage-box">
+      <div id="stage" aria-label="LED-Matrix, zum Kippen ziehen">
+        <canvas id="board"></canvas>
+        <div class="gravity"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M7 1v10M3 7l4 5 4-5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>Schwerkraft</div>
+      </div>
+      <div class="hint">Am Bild ziehen dreht die Matrix wie die echte Skulptur. Die Schwerkraft zeigt immer nach unten.</div>
+    </div>
+
+    <div class="panel">
+      <div class="group">
+        <label class="label" for="tilt">Neigung <output id="tilt-out">0°</output></label>
+        <input id="tilt" type="range" min="-180" max="180" step="1" value="0">
+        <div class="row">
+          <button class="btn" id="auto" aria-pressed="false">Automatisch gießen</button>
+          <button class="btn" id="shake">Schütteln</button>
+          <button class="btn" id="refill">Neu füllen</button>
+        </div>
+      </div>
+
+      <div class="group">
+        <label class="label" for="fill">Füllmenge <output id="fill-out">60 %</output></label>
+        <input id="fill" type="range" min="20" max="90" step="5" value="60">
+      </div>
+
+      <div class="group">
+        <label class="label" for="bright">Helligkeit <output id="bright-out">100 %</output></label>
+        <input id="bright" type="range" min="5" max="100" step="5" value="100">
+      </div>
+
+      <div class="group">
+        <div class="label">Netzteil</div>
+        <div class="seg" role="group" aria-label="Netzteil">
+          <button id="psu-05" aria-pressed="true">0,5 A</button>
+          <button id="psu-20" aria-pressed="false">20 A</button>
+        </div>
+      </div>
+
+      <div class="meter" aria-live="off">
+        <div><span>LEDs, Farbe</span><span id="m-color">–</span></div>
+        <div><span>LEDs, Ruhestrom</span><span id="m-idle">–</span></div>
+        <div><span>ESP32 mit WLAN</span><span>≈ 150 mA</span></div>
+        <div class="sum"><span>Gesamt</span><span id="m-total">–</span></div>
+        <div class="bar" id="m-bar"><i></i></div>
+        <div><span>Gedimmt durch Begrenzung</span><span id="m-dim">–</span></div>
+        <div class="note" id="m-note"></div>
+      </div>
+    </div>
+  </div>
+
+  <p class="foot"><b>So wird gerechnet:</b> Die Flüssigkeit besteht aus ein paar hundert bis tausend Teilchen auf einem Gitter mit doppelter LED-Auflösung (FLIP-Verfahren). Jede LED leuchtet so hell, wie viel Wasser in ihrem Feld steht. Schnelles Wasser wird heller, wie Schaum. Für die Stromwerte gelten 20 mA je Farbkanal bei Vollausschlag, 0,5 mA Ruhestrom je LED, 60 % Obergrenze und Gamma 2,8. Am 0,5-A-Netzteil sind wie in der Firmware 100 mA für Farbe erlaubt. Für eine Matrix dieser Größe sollte ein ESP32 das flüssig schaffen.</p>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  // ---------- Parameter ----------
+  const K = 2;              // Simulationszellen je LED
+  const R = 0.3;            // Teilchenradius (in Zellen)
+  const G = 600;            // Schwerkraft in Zellen/s²
+  const SUB = 3;            // Teilschritte je Bild
+  const DT = 1 / 60 / SUB;
+  const MAXV = 0.6 / DT;    // höchstens 0,6 Zellen je Teilschritt
+  const MAXC = 0.6;         // color_correct 60 %
+  const GAMMA = 2.8;
+  const MA_CH = 20, MA_IDLE = 0.5, MA_ESP = 150, BUDGET_05 = 100;
+  const RAW_MAX = 255 * Math.pow(MAXC, GAMMA);
+  const WATER = [20, 95, 255], FOAM = [170, 225, 255], WALL = [70, 60, 50];
+
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // ---------- Zustand ----------
+  let tilt = 0, auto = false, autoT = 0, psu = "05", bright = 1, fillPct = 0.6;
+  let L;   // Aufbau: ledW, ledH, wallLED Set, gapCol, cup
+  let F;   // Fluid
+
+  // ---------- Aufbau ----------
+  function makeLayout() {
+    // 8 breit, 32 hoch; Wände = Ränder und Boden der Matrix, oben offen
+    return {
+      ledW: 8, ledH: 32, gapCol: -1, openTop: true,
+      isWall: () => false,
+      fillRect: (f) => ({ x0: 0, x1: 7, y0: 31 - Math.round(31 * f) + 1, y1: 31 }),
+    };
+  }
+
+  // ---------- FLIP-Fluid ----------
+  const FLUID = 0, AIR = 1, SOLID = 2;
+  function makeFluid(layout) {
+    const nx = layout.ledW * K + 2, ny = layout.ledH * K + 2, n = ny, cells = nx * ny;
+    const f = {
+      nx, ny, cells,
+      u: new Float32Array(cells), v: new Float32Array(cells),
+      du: new Float32Array(cells), dv: new Float32Array(cells),
+      pu: new Float32Array(cells), pv: new Float32Array(cells),
+      s: new Float32Array(cells), type: new Int32Array(cells), dens: new Float32Array(cells),
+      rest: 0, cap: 4000, num: 0,
+    };
+    f.pos = new Float32Array(2 * f.cap); f.vel = new Float32Array(2 * f.cap); f.age = new Float32Array(f.cap);
+    for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) {
+      // oberer Rand offen: dort ist Luft, kein Deckel
+      let solid = i === 0 || i === nx - 1 || j === ny - 1 || (j === 0 && !layout.openTop);
+      if (!solid) {
+        const lx = Math.floor((i - 1) / K), ly = Math.floor((j - 1) / K);
+        if (layout.isWall(lx, ly)) solid = true;
+      }
+      f.s[i * n + j] = solid ? 0 : 1;
+    }
+    // Hash für Abstoßung
+    f.hInv = 1 / (2.2 * R);
+    f.hX = Math.floor(nx * f.hInv) + 1; f.hY = Math.floor(ny * f.hInv) + 1;
+    f.hCount = new Int32Array(f.hX * f.hY); f.hFirst = new Int32Array(f.hX * f.hY + 1); f.hIds = new Int32Array(f.cap);
+    return f;
+  }
+
+  function solidAt(f, x, y) {
+    const i = Math.floor(x), j = Math.floor(y);
+    if (i < 0 || j < 0 || i >= f.nx || j >= f.ny) return true;
+    return f.s[i * f.ny + j] === 0;
+  }
+
+  function fillFluid() {
+    F = makeFluid(L);
+    const r = L.fillRect(fillPct);
+    const dx = 2 * R, dy = Math.sqrt(3) / 2 * dx;
+    const x0 = 1 + r.x0 * K, x1 = 1 + (r.x1 + 1) * K, y0 = 1 + r.y0 * K, y1 = 1 + (r.y1 + 1) * K;
+    let row = 0;
+    for (let y = y1 - R - 0.01; y > y0 + R; y -= dy, row++) {
+      for (let x = x0 + R + (row % 2 ? R : 0); x < x1 - R; x += dx) {
+        if (F.num >= F.cap) break;
+        if (solidAt(F, x, y)) continue;
+        F.pos[2 * F.num] = x; F.pos[2 * F.num + 1] = y; F.num++;
+      }
+    }
+    F.target = F.num;
+    // Teilchen je LED bei Ruhe
+    F.perLed = K * K / (dx * dy);
+  }
+
+  function integrate(f, gx, gy) {
+    for (let i = 0; i < f.num; i++) {
+      let vx = f.vel[2 * i] + gx * DT, vy = f.vel[2 * i + 1] + gy * DT;
+      const sp = Math.hypot(vx, vy);
+      if (sp > MAXV) { vx *= MAXV / sp; vy *= MAXV / sp; }
+      f.vel[2 * i] = vx; f.vel[2 * i + 1] = vy;
+      f.pos[2 * i] += vx * DT; f.pos[2 * i + 1] += vy * DT;
+    }
+  }
+
+  function pushApart(f, iters) {
+    const { hX, hY, hInv, hCount, hFirst, hIds, pos } = f;
+    hCount.fill(0);
+    for (let i = 0; i < f.num; i++) {
+      const xi = Math.min(Math.max(Math.floor(pos[2 * i] * hInv), 0), hX - 1);
+      const yi = Math.min(Math.max(Math.floor(pos[2 * i + 1] * hInv), 0), hY - 1);
+      hCount[xi * hY + yi]++;
+    }
+    let first = 0;
+    for (let c = 0; c < hX * hY; c++) { first += hCount[c]; hFirst[c] = first; }
+    hFirst[hX * hY] = first;
+    for (let i = 0; i < f.num; i++) {
+      const xi = Math.min(Math.max(Math.floor(pos[2 * i] * hInv), 0), hX - 1);
+      const yi = Math.min(Math.max(Math.floor(pos[2 * i + 1] * hInv), 0), hY - 1);
+      const c = xi * hY + yi; hFirst[c]--; hIds[hFirst[c]] = i;
+    }
+    const minD = 2 * R, minD2 = minD * minD;
+    for (let it = 0; it < iters; it++) {
+      for (let i = 0; i < f.num; i++) {
+        const px = pos[2 * i], py = pos[2 * i + 1];
+        const pxi = Math.floor(px * hInv), pyi = Math.floor(py * hInv);
+        const xa = Math.max(pxi - 1, 0), ya = Math.max(pyi - 1, 0), xb = Math.min(pxi + 1, hX - 1), yb = Math.min(pyi + 1, hY - 1);
+        for (let xi = xa; xi <= xb; xi++) for (let yi = ya; yi <= yb; yi++) {
+          const c = xi * hY + yi, a = hFirst[c], b = hFirst[c + 1];
+          for (let k = a; k < b; k++) {
+            const id = hIds[k]; if (id === i) continue;
+            let dx = pos[2 * id] - px, dy = pos[2 * id + 1] - py;
+            const d2 = dx * dx + dy * dy;
+            if (d2 > minD2 || d2 === 0) continue;
+            const d = Math.sqrt(d2), s = 0.5 * (minD - d) / d;
+            dx *= s; dy *= s;
+            pos[2 * i] -= dx; pos[2 * i + 1] -= dy; pos[2 * id] += dx; pos[2 * id + 1] += dy;
+          }
+        }
+      }
+    }
+  }
+
+  function collide(f, old) {
+    const lo = 1 + R, hiX = f.nx - 1 - R, hiY = f.ny - 1 - R;
+    for (let i = 0; i < f.num; i++) {
+      let x = f.pos[2 * i], y = f.pos[2 * i + 1];
+      const ox = old[2 * i], oy = old[2 * i + 1];
+      if (x < lo) { x = lo; f.vel[2 * i] = 0; } if (x > hiX) { x = hiX; f.vel[2 * i] = 0; }
+      if (y < lo && !L.openTop) { y = lo; f.vel[2 * i + 1] = 0; } if (y > hiY) { y = hiY; f.vel[2 * i + 1] = 0; }
+      if (solidAt(f, x, y)) {
+        if (!solidAt(f, ox, y)) { x = ox; f.vel[2 * i] = 0; }
+        else if (!solidAt(f, x, oy)) { y = oy; f.vel[2 * i + 1] = 0; }
+        else { x = ox; y = oy; f.vel[2 * i] = 0; f.vel[2 * i + 1] = 0; }
+      }
+      f.pos[2 * i] = x; f.pos[2 * i + 1] = y;
+    }
+  }
+
+  function transfer(f, toGrid, flipRatio) {
+    const n = f.ny, h = 1, h2 = 0.5;
+    if (toGrid) {
+      f.pu.set(f.u); f.pv.set(f.v);
+      f.du.fill(0); f.dv.fill(0); f.u.fill(0); f.v.fill(0);
+      for (let c = 0; c < f.cells; c++) f.type[c] = f.s[c] === 0 ? SOLID : AIR;
+      for (let i = 0; i < f.num; i++) {
+        const xi = Math.min(Math.max(Math.floor(f.pos[2 * i]), 0), f.nx - 1);
+        const yi = Math.min(Math.max(Math.floor(f.pos[2 * i + 1]), 0), f.ny - 1);
+        const c = xi * n + yi; if (f.type[c] === AIR) f.type[c] = FLUID;
+      }
+    }
+    for (let comp = 0; comp < 2; comp++) {
+      const dx = comp === 0 ? 0 : h2, dy = comp === 0 ? h2 : 0;
+      const g = comp === 0 ? f.u : f.v, pg = comp === 0 ? f.pu : f.pv, d = comp === 0 ? f.du : f.dv;
+      for (let i = 0; i < f.num; i++) {
+        let x = Math.min(Math.max(f.pos[2 * i], h), (f.nx - 1) * h);
+        let y = Math.min(Math.max(f.pos[2 * i + 1], h), (f.ny - 1) * h);
+        const x0 = Math.min(Math.floor(x - dx), f.nx - 2), tx = (x - dx) - x0, x1 = Math.min(x0 + 1, f.nx - 2);
+        const y0 = Math.min(Math.floor(y - dy), f.ny - 2), ty = (y - dy) - y0, y1 = Math.min(y0 + 1, f.ny - 2);
+        const sx = 1 - tx, sy = 1 - ty;
+        const d0 = sx * sy, d1 = tx * sy, d2 = tx * ty, d3 = sx * ty;
+        const n0 = x0 * n + y0, n1 = x1 * n + y0, n2 = x1 * n + y1, n3 = x0 * n + y1;
+        if (toGrid) {
+          const pv = f.vel[2 * i + comp];
+          g[n0] += pv * d0; d[n0] += d0; g[n1] += pv * d1; d[n1] += d1;
+          g[n2] += pv * d2; d[n2] += d2; g[n3] += pv * d3; d[n3] += d3;
+        } else {
+          const off = comp === 0 ? n : 1;
+          const v0 = f.type[n0] !== AIR || f.type[n0 - off] !== AIR ? 1 : 0;
+          const v1 = f.type[n1] !== AIR || f.type[n1 - off] !== AIR ? 1 : 0;
+          const v2 = f.type[n2] !== AIR || f.type[n2 - off] !== AIR ? 1 : 0;
+          const v3 = f.type[n3] !== AIR || f.type[n3 - off] !== AIR ? 1 : 0;
+          const ds = v0 * d0 + v1 * d1 + v2 * d2 + v3 * d3;
+          if (ds > 0) {
+            const pic = (v0 * d0 * g[n0] + v1 * d1 * g[n1] + v2 * d2 * g[n2] + v3 * d3 * g[n3]) / ds;
+            const corr = (v0 * d0 * (g[n0] - pg[n0]) + v1 * d1 * (g[n1] - pg[n1]) + v2 * d2 * (g[n2] - pg[n2]) + v3 * d3 * (g[n3] - pg[n3])) / ds;
+            const vel = f.vel[2 * i + comp];
+            f.vel[2 * i + comp] = (1 - flipRatio) * pic + flipRatio * (vel + corr);
+          }
+        }
+      }
+      if (toGrid) {
+        for (let c = 0; c < f.cells; c++) if (d[c] > 0) g[c] /= d[c];
+        for (let i = 0; i < f.nx; i++) for (let j = 0; j < f.ny; j++) {
+          const solid = f.type[i * n + j] === SOLID;
+          if (comp === 0 && (solid || (i > 0 && f.type[(i - 1) * n + j] === SOLID))) f.u[i * n + j] = f.pu[i * n + j];
+          if (comp === 1 && (solid || (j > 0 && f.type[i * n + j - 1] === SOLID))) f.v[i * n + j] = f.pv[i * n + j];
+        }
+      }
+    }
+  }
+
+  function density(f) {
+    const n = f.ny, d = f.dens; d.fill(0);
+    for (let i = 0; i < f.num; i++) {
+      const x = Math.min(Math.max(f.pos[2 * i], 1), f.nx - 1), y = Math.min(Math.max(f.pos[2 * i + 1], 1), f.ny - 1);
+      const x0 = Math.floor(x - 0.5), tx = (x - 0.5) - x0, x1 = Math.min(x0 + 1, f.nx - 2);
+      const y0 = Math.floor(y - 0.5), ty = (y - 0.5) - y0, y1 = Math.min(y0 + 1, f.ny - 2);
+      const sx = 1 - tx, sy = 1 - ty;
+      d[x0 * n + y0] += sx * sy; d[x1 * n + y0] += tx * sy; d[x1 * n + y1] += tx * ty; d[x0 * n + y1] += sx * ty;
+    }
+    if (f.rest === 0) {
+      let sum = 0, cnt = 0;
+      for (let c = 0; c < f.cells; c++) if (f.type[c] === FLUID) { sum += d[c]; cnt++; }
+      if (cnt > 0) f.rest = sum / cnt;
+    }
+  }
+
+  function solve(f, iters, over) {
+    const n = f.ny;
+    for (let it = 0; it < iters; it++) {
+      for (let i = 1; i < f.nx - 1; i++) for (let j = 1; j < f.ny - 1; j++) {
+        const c = i * n + j;
+        if (f.type[c] !== FLUID) continue;
+        const l = (i - 1) * n + j, r = (i + 1) * n + j, b = c - 1, t = c + 1;
+        const s0 = f.s[l], s1 = f.s[r], s2 = f.s[b], s3 = f.s[t], ss = s0 + s1 + s2 + s3;
+        if (ss === 0) continue;
+        let div = f.u[r] - f.u[c] + f.v[t] - f.v[c];
+        if (f.rest > 0) { const comp = f.dens[c] - f.rest; if (comp > 0) div -= comp; }
+        const p = -div / ss * over;
+        f.u[c] -= s0 * p; f.u[r] += s1 * p; f.v[c] -= s2 * p; f.v[t] += s3 * p;
+      }
+    }
+  }
+
+  let oldPos = new Float32Array(8000);
+  function step(gx, gy) {
+    const f = F;
+    if (oldPos.length < f.pos.length) oldPos = new Float32Array(f.pos.length);
+    oldPos.set(f.pos.subarray(0, 2 * f.num));
+    integrate(f, gx, gy);
+    pushApart(f, 2);
+    collide(f, oldPos);
+    transfer(f, true, 0);
+    density(f);
+    solve(f, 40, 1.9);
+    transfer(f, false, 0.9);
+  }
+
+  // Was oben aus dem Glas läuft, ist weg; steht das Glas, läuft oben Wasser nach
+  function glassHousekeeping() {
+    const f = F;
+    for (let i = f.num - 1; i >= 0; i--) {
+      const x = f.pos[2 * i], y = f.pos[2 * i + 1];
+      if (y < 0.5 || y < 1 && (x < 1 || x > f.nx - 1)) {
+        const last = f.num - 1;
+        f.pos[2 * i] = f.pos[2 * last]; f.pos[2 * i + 1] = f.pos[2 * last + 1];
+        f.vel[2 * i] = f.vel[2 * last]; f.vel[2 * i + 1] = f.vel[2 * last + 1];
+        f.num--;
+      }
+    }
+    if (Math.abs(tilt) < 12 && f.num < f.target) {
+      for (let k = 0; k < 6 && f.num < f.target; k++) {
+        const x = 1 + 3 * K + Math.random() * K * 2, y = 1 + R + Math.random() * 0.5;
+        f.pos[2 * f.num] = x; f.pos[2 * f.num + 1] = y; f.vel[2 * f.num] = 0; f.vel[2 * f.num + 1] = 40; f.num++;
+      }
+    }
+  }
+
+  // ---------- LEDs & Strom ----------
+  let ledCount, ledSpeed, ledColor;
+  function computeLeds() {
+    const W = L.ledW, H = L.ledH, N = W * H;
+    if (!ledCount || ledCount.length !== N) { ledCount = new Float32Array(N); ledSpeed = new Float32Array(N); ledColor = new Float32Array(3 * N); }
+    ledCount.fill(0); ledSpeed.fill(0);
+    for (let i = 0; i < F.num; i++) {
+      const lx = Math.floor((F.pos[2 * i] - 1) / K), ly = Math.floor((F.pos[2 * i + 1] - 1) / K);
+      if (lx < 0 || ly < 0 || lx >= W || ly >= H) continue;
+      ledCount[lx * H + ly]++;
+      ledSpeed[lx * H + ly] += Math.hypot(F.vel[2 * i], F.vel[2 * i + 1]);
+    }
+    for (let x = 0; x < W; x++) for (let y = 0; y < H; y++) {
+      const c = x * H + y;
+      let r = 0, g = 0, b = 0;
+      if (x === L.gapCol) { /* keine LEDs */ }
+      else if (L.isWall(x, y)) { [r, g, b] = WALL; }
+      else if (ledCount[c] > 0) {
+        let lvl = Math.min(1, ledCount[c] / (0.55 * F.perLed));
+        lvl = Math.max(lvl, 0.22);
+        const sp = ledSpeed[c] / ledCount[c];
+        const m = Math.min(1, sp / 90) * 0.7;
+        r = (WATER[0] * (1 - m) + FOAM[0] * m) * lvl;
+        g = (WATER[1] * (1 - m) + FOAM[1] * m) * lvl;
+        b = (WATER[2] * (1 - m) + FOAM[2] * m) * lvl;
+      }
+      ledColor[3 * c] = r; ledColor[3 * c + 1] = g; ledColor[3 * c + 2] = b;
+    }
+  }
+  const raw = (v, f) => 255 * Math.pow(Math.min(255, v * bright * MAXC * f) / 255, GAMMA);
+  function colorCurrent(f) {
+    let s = 0;
+    for (let i = 0; i < ledColor.length; i++) if (ledColor[i] > 0) s += raw(ledColor[i], f);
+    return s * MA_CH / 255;
+  }
+  let dimF = 1, lastMa = 0;
+  function limit() {
+    let ma = colorCurrent(1), f = 1;
+    if (psu === "05" && ma > BUDGET_05) {
+      let lo = 0, hi = 1;
+      for (let k = 0; k < 14; k++) { const m = (lo + hi) / 2; if (colorCurrent(m) > BUDGET_05) hi = m; else lo = m; }
+      f = lo; ma = colorCurrent(f);
+    }
+    dimF = f; lastMa = ma;
+  }
+
+  // ---------- Zeichnen ----------
+  const stage = document.getElementById("stage"), cv = document.getElementById("board"), ctx = cv.getContext("2d");
+  let pitch = 20, pad = 10, dpr = 1;
+  function layoutCanvas() {
+    const W = L.ledW, H = L.ledH;
+    const avail = stage.clientWidth;
+    const maxH = Math.max(280, Math.min(window.innerHeight * 0.72, 760));
+    // Platz für jede Drehung: Diagonale des Boards
+    const diagLeds = Math.hypot(W + 1, H + 1);
+    pitch = Math.max(6, Math.floor(Math.min(avail, maxH) / diagLeds));
+    pad = Math.round(pitch * 0.5);
+    const bw = W * pitch + 2 * pad, bh = H * pitch + 2 * pad;
+    const side = Math.ceil(Math.hypot(bw, bh)) + 8;
+    stage.style.height = Math.min(side, Math.max(maxH, side)) + "px";
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    cv.width = bw * dpr; cv.height = bh * dpr;
+    cv.style.width = bw + "px"; cv.style.height = bh + "px";
+    cv.style.marginLeft = -bw / 2 + "px"; cv.style.marginTop = -bh / 2 + "px";
+  }
+
+  function draw() {
+    const W = L.ledW, H = L.ledH;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const bw = W * pitch + 2 * pad, bh = H * pitch + 2 * pad;
+    ctx.clearRect(0, 0, bw, bh);
+    // Platinen
+    const boards = L.gapCol < 0 ? [[0, W]] : [[0, L.gapCol], [L.gapCol + 1, W]];
+    ctx.fillStyle = "#05070a";
+    for (const [a, b] of boards) {
+      const x = pad + a * pitch - pad * 0.6, w = (b - a) * pitch + pad * 1.2;
+      roundRect(x, pad - pad * 0.6, w, H * pitch + pad * 1.2, pad * 0.5); ctx.fill();
+    }
+    // Glaswand: links, rechts, unten; oben offen
+    ctx.strokeStyle = "#4b5b6c"; ctx.lineWidth = Math.max(1.5, pitch * 0.1);
+    ctx.beginPath(); ctx.moveTo(pad * 0.4, pad * 0.4); ctx.lineTo(pad * 0.4, bh - pad * 0.4);
+    ctx.lineTo(bw - pad * 0.4, bh - pad * 0.4); ctx.lineTo(bw - pad * 0.4, pad * 0.4); ctx.stroke();
+    const rr = pitch * 0.36, rg = pitch * 0.62;
+    for (let x = 0; x < W; x++) {
+      if (x === L.gapCol) continue;
+      for (let y = 0; y < H; y++) {
+        const c = x * H + y, cx = pad + (x + 0.5) * pitch, cy = pad + (y + 0.5) * pitch;
+        // Gehäuse der LED
+        ctx.fillStyle = "#11161c";
+        ctx.fillRect(cx - pitch * 0.38, cy - pitch * 0.38, pitch * 0.76, pitch * 0.76);
+        const r0 = ledColor[3 * c], g0 = ledColor[3 * c + 1], b0 = ledColor[3 * c + 2];
+        if (r0 + g0 + b0 <= 0) continue;
+        const sr = scr(r0), sg = scr(g0), sb = scr(b0);
+        if (sr + sg + sb < 3) continue;
+        ctx.fillStyle = `rgba(${sr},${sg},${sb},0.22)`;
+        ctx.beginPath(); ctx.arc(cx, cy, rg, 0, 6.2832); ctx.fill();
+        ctx.fillStyle = `rgb(${sr},${sg},${sb})`;
+        ctx.beginPath(); ctx.arc(cx, cy, rr, 0, 6.2832); ctx.fill();
+      }
+    }
+  }
+  // Bildschirmfarbe aus dem echten LED-Wert (linear) -> sRGB, bezogen auf die maximale Helligkeit
+  function scr(v) { const r = raw(v, dimF); return Math.round(255 * Math.pow(r / RAW_MAX, 1 / 2.2)); }
+  function roundRect(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+
+  // ---------- Anzeige der Werte ----------
+  const $ = (id) => document.getElementById(id);
+  let meterT = 0;
+  function meter() {
+    const leds = L.ledW * L.ledH - (L.gapCol >= 0 ? L.ledH : 0);
+    const idle = leds * MA_IDLE, total = lastMa + idle + MA_ESP;
+    $("m-color").textContent = fmt(lastMa);
+    $("m-idle").textContent = fmt(idle);
+    $("m-total").textContent = fmt(total);
+    $("m-dim").textContent = Math.round((1 - dimF) * 100) + " %";
+    const cap = psu === "05" ? 500 : 20000;
+    const bar = $("m-bar"); bar.querySelector("i").style.width = Math.min(100, total / cap * 100) + "%";
+    bar.classList.toggle("over", total > cap);
+    const note = $("m-note");
+    if (psu === "05" && total > 500) {
+      note.className = "note warn";
+      note.textContent = `Über 0,5 A: Allein der Ruhestrom von ${leds} LEDs und der ESP brauchen ${fmt(idle + MA_ESP)}. Das kleine Netzteil reicht so nicht.`;
+    } else if (psu === "05") {
+      note.className = "note";
+      note.textContent = "Wie in der Firmware: Farbe auf 100 mA begrenzt, der Rest ist Reserve für ESP und Ruhestrom.";
+    } else {
+      note.className = "note";
+      note.textContent = "Am 20-A-Netzteil begrenzt nur die feste 60-%-Obergrenze.";
+    }
+  }
+  const fmt = (ma) => ma >= 1000 ? (ma / 1000).toFixed(2).replace(".", ",") + " A" : Math.round(ma) + " mA";
+
+  // ---------- Bedienung ----------
+  function setTilt(t, fromSlider) {
+    t = ((t + 180) % 360 + 360) % 360 - 180;
+    tilt = t;
+    cv.style.transform = `rotate(${t}deg)`;
+    if (!fromSlider) $("tilt").value = Math.round(t);
+    $("tilt-out").textContent = Math.round(t) + "°";
+  }
+  function setPressed(a, b, on) { $(a).setAttribute("aria-pressed", on); $(b).setAttribute("aria-pressed", !on); }
+  function setup() {
+    L = makeLayout(); fillFluid(); layoutCanvas(); autoT = 0; setTilt(0); computeLeds(); limit(); draw(); meter();
+  }
+  $("tilt").oninput = (e) => { setAuto(false); setTilt(+e.target.value, true); };
+  function setAuto(on) { auto = on; $("auto").setAttribute("aria-pressed", on); if (on) autoT = 0; }
+  $("auto").onclick = () => setAuto(!auto);
+  $("shake").onclick = () => {
+    for (let i = 0; i < F.num; i++) { F.vel[2 * i] += (Math.random() - 0.5) * 160; F.vel[2 * i + 1] += (Math.random() - 0.5) * 160 - 60; }
+  };
+  $("refill").onclick = () => { fillFluid(); };
+  $("fill").oninput = (e) => { fillPct = +e.target.value / 100; $("fill-out").textContent = e.target.value + " %"; fillFluid(); };
+  $("bright").oninput = (e) => { bright = +e.target.value / 100; $("bright-out").textContent = e.target.value + " %"; };
+  $("psu-05").onclick = () => { psu = "05"; setPressed("psu-05", "psu-20", true); };
+  $("psu-20").onclick = () => { psu = "20"; setPressed("psu-05", "psu-20", false); };
+
+  // Ziehen dreht die Matrix
+  let drag = null;
+  stage.addEventListener("pointerdown", (e) => {
+    const r = stage.getBoundingClientRect();
+    drag = { cx: r.left + r.width / 2, cy: r.top + r.height / 2, t0: tilt };
+    drag.a0 = Math.atan2(e.clientY - drag.cy, e.clientX - drag.cx);
+    stage.setPointerCapture(e.pointerId); stage.classList.add("drag"); setAuto(false);
+  });
+  stage.addEventListener("pointermove", (e) => {
+    if (!drag) return;
+    const a = Math.atan2(e.clientY - drag.cy, e.clientX - drag.cx);
+    setTilt(drag.t0 + (a - drag.a0) * 180 / Math.PI);
+  });
+  const endDrag = () => { drag = null; stage.classList.remove("drag"); };
+  stage.addEventListener("pointerup", endDrag); stage.addEventListener("pointercancel", endDrag);
+  window.addEventListener("resize", () => { layoutCanvas(); draw(); });
+
+  // ---------- Schleife ----------
+  let last = performance.now();
+  function frame(now) {
+    const dtF = Math.min(0.05, (now - last) / 1000); last = now;
+    if (auto) {
+      autoT += dtF;
+      // auskippen bis 125°, zurück, warten bis nachgefüllt
+      const p = (autoT % 12) / 12;
+      setTilt(p < 0.5 ? 125 * Math.pow(Math.sin(Math.PI * p * 2), 2) : 0);
+    }
+    const th = tilt * Math.PI / 180, gx = G * Math.sin(th), gy = G * Math.cos(th);
+    for (let s = 0; s < SUB; s++) step(gx, gy);
+    glassHousekeeping();
+    computeLeds(); limit(); draw();
+    meterT += dtF; if (meterT > 0.25) { meterT = 0; meter(); }
+    requestAnimationFrame(frame);
+  }
+
+  setup();
+  if (!reduceMotion) setAuto(true);
+  requestAnimationFrame(frame);
+})();
+</script>
