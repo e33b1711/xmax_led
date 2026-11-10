@@ -23,8 +23,23 @@ String deviceName() {
   return String(buf);
 }
 
-static void scan() {
-  int n = WiFi.scanNetworks();
+// Netze suchen, ohne die Hauptschleife anzuhalten: ein Scan über alle Kanäle dauert mehrere
+// Sekunden, länger als der Loop-Watchdog (5 s) erlaubt. Ergebnis holt pollScan() ab.
+static bool scanning = false;
+
+static void startScan() {
+  if (scanning) return;
+  scanning = WiFi.scanNetworks(true) == WIFI_SCAN_RUNNING;
+  lastScan = millis();
+}
+
+// true, wenn gerade ein Scan fertig geworden ist
+static bool pollScan() {
+  if (!scanning) return false;
+  int n = WiFi.scanComplete();
+  if (n == WIFI_SCAN_RUNNING) return false;
+  scanning = false;
+  if (n < 0) return false;   // fehlgeschlagen
   options = "";
   seen = false;
   for (int i = 0; i < n; i++) {
@@ -34,7 +49,7 @@ static void scan() {
     options += "<option>" + s + "</option>";
   }
   WiFi.scanDelete();
-  lastScan = millis();
+  return true;
 }
 
 void begin() {
@@ -60,7 +75,7 @@ static String page() {
                "small{color:#aaa}</style><h2>Sanduhr einrichten</h2>"
                "<p>Hier kommt die Sanduhr ins Heimnetz. Das braucht sie nur für Updates, die nachts automatisch kommen.</p>"
                "<form method=post action=/save><label>WLAN</label><select name=s>");
-  h += options;
+  h += options.isEmpty() ? String(F("<option value=''>Suche läuft - Seite gleich neu laden</option>")) : options;
   h += F("</select><label>oder Name von Hand <small>(versteckte Netze)</small></label><input name=m autocomplete=off>"
          "<label>Passwort</label><input name=p type=password><label>Update-Kanal</label><select name=c>");
   h += String("<option value=stabil") + (settings.channel == "stabil" ? " selected" : "") + ">stabil</option>";
@@ -74,8 +89,8 @@ void startPortal() {
   Serial.println("WLAN: Einrichtung gestartet");
   WiFi.disconnect(true);
   WiFi.mode(WIFI_AP_STA);
-  scan();
   WiFi.softAP(deviceName().c_str());
+  startScan();
   dns.start(53, "*", WiFi.softAPIP());
   server.on("/", HTTP_GET, [] { server.send(200, "text/html", page()); });
   server.on("/save", HTTP_POST, [] {
@@ -101,6 +116,7 @@ void startPortal() {
 }
 
 void loop() {
+  bool scanDone = pollScan();
   if (portal) {
     dns.processNextRequest();
     server.handleClient();
@@ -111,10 +127,8 @@ void loop() {
     return;
   }
   // Ist das Netz überhaupt zu sehen? (für die Gesundheitsprüfung nach Updates)
-  if (configured() && !connected() && millis() - lastScan > 60000) {
-    scan();
-    if (!connected()) WiFi.begin(settings.ssid.c_str(), settings.pass.c_str());
-  }
+  if (configured() && !connected() && !scanning && millis() - lastScan > 60000) startScan();
+  if (scanDone && configured() && !connected()) WiFi.begin(settings.ssid.c_str(), settings.pass.c_str());
 }
 
 bool connected() { return WiFi.status() == WL_CONNECTED; }

@@ -7,8 +7,9 @@
 //   A + B 5 s           WLAN einrichten (eigenes WLAN "Sanduhr-XXXX", Handy verbinden)
 //   Umdrehen            Sand läuft in die andere Richtung - wie bei einer echten Sanduhr
 //
-// Serielle Konsole (115200 Baud): t = Testbild 5 s, i = Sensorwerte, k = Touch-Werte,
-//   u = Update suchen, s = Status
+// Serielle Konsole (115200 Baud), ersetzt auch die Tasten (Prototyp ohne Touch):
+//   a = wie Taste A, b = wie Taste B, u = Update suchen (wie B 5 s), w = WLAN einrichten (wie A+B 5 s)
+//   t = Testbild 5 s, i = Sensorwerte, k = Touch-Werte, s = Status, ? = Hilfe
 #include <Arduino.h>
 #include "config.h"
 #include "settings.h"
@@ -71,19 +72,31 @@ static void drawUpdate() {
   for (int i = 0; i < n; i++) Leds::set(i % MATRIX_W, MATRIX_H - 1 - i / MATRIX_W, CRGB(10, 40, 90));
 }
 
-static void serialCommands() {
+static void printHelp() {
+  Serial.println("Befehle: a Helligkeit, b Laufzeit, u Update suchen, w WLAN einrichten,\n"
+                 "         t Testbild, i Sensorwerte, k Touch-Werte, s Status, ? Hilfe");
+}
+
+// Liefert ein Tasten-Ereignis, wenn ein Befehl eine Taste ersetzt
+static Touch::Event serialCommands() {
+  Touch::Event ev = Touch::NONE;
   while (Serial.available()) {
     char c = Serial.read();
+    if (c == 'a') ev = Touch::A_SHORT;
+    if (c == 'b') ev = Touch::B_SHORT;
+    if (c == 'u') ev = Touch::B_LONG;
+    if (c == 'w') ev = Touch::AB_LONG;
+    if (c == '?' || c == 'h') printHelp();
     if (c == 't') testUntil = millis() + 5000;
     if (c == 'i') streamImu = !streamImu;
     if (c == 'k') streamTouch = !streamTouch;
-    if (c == 'u') Updater::checkNow();
     if (c == 's')
       Serial.printf("Version %s, Kanal %s, WLAN %s, Zeit %s, Sensor %s, Update: %s, Körner %d, Probe %s\n", FW_VERSION,
                     settings.channel.c_str(), Net::connected() ? "verbunden" : (Net::configured() ? "getrennt" : "nicht eingerichtet"),
                     Net::timeValid() ? "ok" : "fehlt", Imu::ok() ? "ok" : "fehlt", Updater::lastResult(), Sand::count(),
                     Health::pending() ? "ja" : "nein");
   }
+  return ev;
 }
 
 void setup() {
@@ -98,6 +111,7 @@ void setup() {
   Sand::begin(0.8f);
   Net::begin();
   Updater::begin();
+  printHelp();
   enableLoopWDT();   // hängt die Hauptschleife > 5 s, startet der ESP neu (und fällt ggf. zurück)
 }
 
@@ -108,13 +122,15 @@ void loop() {
   float dt = min(0.05f, (now - lastFrame) / 1000.0f);
   lastFrame = now;
 
-  serialCommands();
+  Touch::Event cmd = serialCommands();
   Net::loop();
   Health::loop();
   Updater::loop();
   Imu::update();
 
-  switch (Touch::update()) {
+  Touch::Event ev = Touch::update();
+  if (cmd != Touch::NONE) ev = cmd;
+  switch (ev) {
     case Touch::A_SHORT:
       settings.brightIdx = (settings.brightIdx + 1) % N_BRIGHT;
       settings.save();

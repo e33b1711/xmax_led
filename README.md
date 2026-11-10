@@ -35,7 +35,9 @@ pio run -e sanduhr -t upload -t monitor        # 16×32
 pio run -e prototyp16 -t upload -t monitor     # Prototyp mit einer 16×16
 ```
 
-Serielle Konsole (115200 Baud): `t` Testbild, `i` Sensorwerte, `k` Touch-Werte, `u` Update suchen, `s` Status.
+Serielle Konsole (115200 Baud): `t` Testbild, `i` Sensorwerte, `k` Touch-Werte, `s` Status, `?` Hilfe.
+Die Tasten lassen sich dort ersetzen (Prototyp ohne Touch): `a` wie Taste A, `b` wie Taste B,
+`u` Update suchen, `w` WLAN einrichten.
 
 Am Prototyp einmal festlegen (in `firmware/src/config.h`):
 - **Verdrahtung:** `t` zeigt oben links rot, oben rechts grün, unten links blau, unten rechts weiß und
