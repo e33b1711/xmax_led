@@ -41,6 +41,8 @@ Event update() {
     if (!longFired && now - max(since[0], since[1]) > LONG_MS) { longFired = true; return AB_LONG; }
     return NONE;
   }
+  // A allein lange: Betriebsart wechseln
+  if (held[0] && !held[1] && !longFired && now - since[0] > LONG_MS) { longFired = true; return A_LONG; }
   // B allein lange: jetzt nach Updates suchen
   if (held[1] && !held[0] && !longFired && now - since[1] > LONG_MS) { longFired = true; return B_LONG; }
   // kurzer Druck = beim Loslassen, wenn kein langer Druck ausgelöst wurde

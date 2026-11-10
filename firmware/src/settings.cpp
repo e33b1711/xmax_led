@@ -15,6 +15,7 @@ void Settings::load() {
   bool hasMinute = p.isKey("otamin");
   otaMinute = p.getUChar("otamin", 0);
   height = p.getUChar("height", 0);
+  mode = p.getUChar("mode", 0);
   p.end();
   bool changed = false;
   if (!hasMinute) {
@@ -39,5 +40,6 @@ void Settings::save() {
   p.putString("channel", channel);
   p.putUChar("otamin", otaMinute);
   p.putUChar("height", height);
+  p.putUChar("mode", mode);
   p.end();
 }

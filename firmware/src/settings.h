@@ -13,6 +13,7 @@ struct Settings {
   String ssid, pass;
   String channel = "stabil";   // Update-Kanal: "stabil" oder "test"
   uint8_t otaMinute = 0;       // zufällige Minute im Nachtfenster, damit nicht alle gleichzeitig laden
+  uint8_t mode = 0;            // 0 = Sanduhr, 1 = Game of Life
   uint8_t height = 0;          // Matrixhöhe 16 oder 32; beim ersten Start = MATRIX_H
 
   void load();

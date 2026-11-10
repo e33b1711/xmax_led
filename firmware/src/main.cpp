@@ -2,7 +2,9 @@
 //
 // Bedienung:
 //   Taste A kurz        Helligkeit (5 Stufen)
-//   Taste B kurz        Laufzeit (1, 3, 5, 10, 15, 30 min), wird kurz als Zahl gezeigt
+//   Taste B kurz        Sanduhr: Laufzeit (1, 3, 5, 10, 15, 30 min), wird kurz als Zahl gezeigt
+//                       Game of Life: neu starten
+//   Taste A 5 s         Betriebsart wechseln: Sanduhr <-> Game of Life
 //   Taste B 5 s         jetzt nach Updates suchen
 //   A + B 5 s           WLAN einrichten (eigenes WLAN "Sanduhr-XXXX", Handy verbinden)
 //   Umdrehen            Sand läuft in die andere Richtung - wie bei einer echten Sanduhr
@@ -10,13 +12,14 @@
 // Serielle Konsole (115200 Baud), ersetzt auch die Tasten (Prototyp ohne Touch):
 //   a = wie Taste A, b = wie Taste B, u = Update suchen (wie B 5 s), w = WLAN einrichten (wie A+B 5 s)
 //   t = Testbild 5 s, i = Sensorwerte, k = Touch-Werte, s = Status, ? = Hilfe,
-//   m = Matrixhöhe 16/32 umschalten (wird gespeichert)
+//   m = Matrixhöhe 16/32 umschalten (wird gespeichert), g = Betriebsart wechseln (wie A 5 s)
 //   , / . = Azimut -/+5°, - / + = Elevation -/+5°, 0 = Lage wieder vom Sensor (Lage von Hand)
 #include <Arduino.h>
 #include "config.h"
 #include "settings.h"
 #include "leds.h"
 #include "sand.h"
+#include "life.h"
 #include "imu.h"
 #include "touch.h"
 #include "net.h"
@@ -89,7 +92,8 @@ static void drawUpdate() {
 
 static void printHelp() {
   Serial.println("Befehle: a Helligkeit, b Laufzeit, u Update suchen, w WLAN einrichten,\n"
-                 "         t Testbild, i Sensorwerte, k Touch-Werte, s Status, m Matrix 16/32, ? Hilfe\n"
+                 "         g Sanduhr/Game of Life, t Testbild, i Sensorwerte, k Touch-Werte, s Status,\n"
+                 "         m Matrix 16/32, ? Hilfe\n"
                  "         , . Azimut -/+5°, - + Elevation -/+5°, 0 Lage wieder vom Sensor");
 }
 
@@ -102,6 +106,7 @@ static Touch::Event serialCommands() {
     if (c == 'b') ev = Touch::B_SHORT;
     if (c == 'u') ev = Touch::B_LONG;
     if (c == 'w') ev = Touch::AB_LONG;
+    if (c == 'g') ev = Touch::A_LONG;
     if (c == '?' || c == 'h') printHelp();
     if (c == 't') testUntil = millis() + 5000;
     if (c == 'i') streamImu = !streamImu;
@@ -120,11 +125,12 @@ static Touch::Event serialCommands() {
       settings.save();
       Leds::setHeight(settings.height);
       Sand::begin(settings.height, 0.8f);
+      Life::begin(settings.height);
       Serial.printf("Matrix jetzt %dx%d (gespeichert)\n", MATRIX_W, settings.height);
     }
     if (c == 's')
-      Serial.printf("Version %s, Matrix %dx%d, Kanal %s, WLAN %s, Zeit %s, Sensor %s, Update: %s, Körner %d, Probe %s\n", FW_VERSION,
-                    MATRIX_W, Leds::height(), settings.channel.c_str(), Net::connected() ? "verbunden" : (Net::configured() ? "getrennt" : "nicht eingerichtet"),
+      Serial.printf("Version %s, %s, Matrix %dx%d, Kanal %s, WLAN %s, Zeit %s, Sensor %s, Update: %s, Körner %d, Probe %s\n", FW_VERSION,
+                    settings.mode ? "Game of Life" : "Sanduhr", MATRIX_W, Leds::height(), settings.channel.c_str(), Net::connected() ? "verbunden" : (Net::configured() ? "getrennt" : "nicht eingerichtet"),
                     Net::timeValid() ? "ok" : "fehlt", Imu::ok() ? "ok" : "fehlt", Updater::lastResult(), Sand::count(),
                     Health::pending() ? "ja" : "nein");
   }
@@ -142,6 +148,7 @@ void setup() {
   Imu::begin();
   Touch::begin();
   Sand::begin(h, 0.8f);
+  Life::begin(h);
   Net::begin();
   Updater::begin();
   printHelp();
@@ -170,9 +177,19 @@ void loop() {
       showOverlay(OV_BRIGHT, 1200);
       break;
     case Touch::B_SHORT:
+      if (settings.mode == 1) {
+        Life::reseed();
+        break;
+      }
       settings.durIdx = (settings.durIdx + 1) % N_DUR;
       settings.save();
       showOverlay(OV_DURATION, 1500);
+      break;
+    case Touch::A_LONG:
+      settings.mode = settings.mode ? 0 : 1;
+      settings.save();
+      if (settings.mode == 1) Life::reseed();
+      Serial.printf("Betriebsart: %s\n", settings.mode ? "Game of Life" : "Sanduhr");
       break;
     case Touch::B_LONG:
       showOverlay(OV_SEARCH, 4000);
@@ -197,6 +214,11 @@ void loop() {
     drawPortal();
   } else if (Updater::state() == Updater::DOWNLOADING) {
     drawUpdate();
+  } else if (settings.mode == 1) {
+    Life::step(now);
+    Leds::clear();
+    Life::render();
+    drawOverlay();
   } else {
     float gx = 0, gy = 1;
     if (manualPose) {

@@ -3,7 +3,7 @@
 #include <Arduino.h>
 
 namespace Touch {
-enum Event : uint8_t { NONE, A_SHORT, B_SHORT, C_SHORT, D_SHORT, B_LONG, AB_LONG };
+enum Event : uint8_t { NONE, A_SHORT, B_SHORT, C_SHORT, D_SHORT, A_LONG, B_LONG, AB_LONG };
 void begin();
 Event update();        // einmal pro Bild aufrufen
 bool anyHeld();
