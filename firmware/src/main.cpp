@@ -94,7 +94,7 @@ static void drawUpdate() {
 }
 
 static void printHelp() {
-  Serial.println("Befehle: a Helligkeit, b Laufzeit, u Update suchen, w WLAN einrichten,\n"
+  Serial.println("Befehle: a Helligkeit, b Laufzeit (Game of Life: Tempo), u Update suchen, w WLAN einrichten,\n"
                  "         g Sanduhr/Game of Life, r Game of Life neu, t Testbild, i Sensorwerte, k Touch-Werte, s Status,\n"
                  "         m Matrix 16/32, ? Hilfe\n"
                  "         , . Azimut -/+5°, - + Elevation -/+5°, 0 Lage wieder vom Sensor");
