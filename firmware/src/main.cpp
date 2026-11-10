@@ -11,6 +11,7 @@
 //   a = wie Taste A, b = wie Taste B, u = Update suchen (wie B 5 s), w = WLAN einrichten (wie A+B 5 s)
 //   t = Testbild 5 s, i = Sensorwerte, k = Touch-Werte, s = Status, ? = Hilfe,
 //   m = Matrixhöhe 16/32 umschalten (wird gespeichert)
+//   , / . = Azimut -/+5°, - / + = Elevation -/+5°, 0 = Lage wieder vom Sensor (Lage von Hand)
 #include <Arduino.h>
 #include "config.h"
 #include "settings.h"
@@ -25,6 +26,19 @@ enum Overlay : uint8_t { OV_NONE, OV_BRIGHT, OV_DURATION, OV_SEARCH };
 static Overlay overlay = OV_NONE;
 static uint32_t overlayUntil = 0, testUntil = 0;
 static bool streamImu = false, streamTouch = false;
+
+// Lage von Hand (ohne Sensor oder zum Testen): Azimut = Drehung in der Matrixebene
+// (0° aufrecht, 90° Schwerkraft nach rechts, 180° auf dem Kopf), Elevation = Neigung nach
+// hinten (0° senkrecht, 90° flach liegend -> der Sand bleibt stehen).
+static bool manualPose = false;
+static int azimuth = 0, elevation = 0;
+
+static void changePose(int dAz, int dEl) {
+  manualPose = true;
+  azimuth = ((azimuth + dAz) % 360 + 360) % 360;
+  elevation = constrain(elevation + dEl, 0, 90);
+  Serial.printf("Lage von Hand: Azimut %d°, Elevation %d°\n", azimuth, elevation);
+}
 
 static void showOverlay(Overlay o, uint32_t ms) {
   overlay = o;
@@ -75,7 +89,8 @@ static void drawUpdate() {
 
 static void printHelp() {
   Serial.println("Befehle: a Helligkeit, b Laufzeit, u Update suchen, w WLAN einrichten,\n"
-                 "         t Testbild, i Sensorwerte, k Touch-Werte, s Status, m Matrix 16/32, ? Hilfe");
+                 "         t Testbild, i Sensorwerte, k Touch-Werte, s Status, m Matrix 16/32, ? Hilfe\n"
+                 "         , . Azimut -/+5°, - + Elevation -/+5°, 0 Lage wieder vom Sensor");
 }
 
 // Liefert ein Tasten-Ereignis, wenn ein Befehl eine Taste ersetzt
@@ -91,6 +106,15 @@ static Touch::Event serialCommands() {
     if (c == 't') testUntil = millis() + 5000;
     if (c == 'i') streamImu = !streamImu;
     if (c == 'k') streamTouch = !streamTouch;
+    if (c == ',' || c == '<') changePose(-5, 0);
+    if (c == '.' || c == '>') changePose(5, 0);
+    if (c == '-') changePose(0, -5);
+    if (c == '+' || c == '=') changePose(0, 5);
+    if (c == '0') {
+      manualPose = false;
+      azimuth = elevation = 0;
+      Serial.println(Imu::ok() ? "Lage wieder vom Sensor" : "Lage zurückgesetzt (kein Sensor: aufrecht)");
+    }
     if (c == 'm') {
       settings.height = Leds::height() == 32 ? 16 : 32;
       settings.save();
@@ -175,7 +199,14 @@ void loop() {
     drawUpdate();
   } else {
     float gx = 0, gy = 1;
-    if (Imu::ok()) { gx = Imu::gx(); gy = Imu::gy(); }
+    if (manualPose) {
+      float el = radians((float)elevation), az = radians((float)azimuth);
+      gx = cosf(el) * sinf(az);
+      gy = cosf(el) * cosf(az);
+    } else if (Imu::ok()) {
+      gx = Imu::gx();
+      gy = Imu::gy();
+    }
     Sand::step(gx, gy, dt, Sand::count() / (float)settings.durationS());
     Leds::clear();
     Sand::render();

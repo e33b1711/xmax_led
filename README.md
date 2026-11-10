@@ -37,6 +37,8 @@ pio run -e prototyp16 -t upload -t monitor     # Prototyp mit einer 16×16
 
 Serielle Konsole (115200 Baud): `t` Testbild, `i` Sensorwerte, `k` Touch-Werte, `s` Status, `?` Hilfe,
 `m` Matrixhöhe 16/32 umschalten (wird im Gerät gespeichert).
+Lage von Hand (ohne Sensor): `,` / `.` Azimut −/+5° (Drehung in der Ebene, 180° = auf dem Kopf),
+`-` / `+` Elevation −/+5° (nach hinten kippen, 90° = flach), `0` Lage wieder vom Sensor.
 Die Tasten lassen sich dort ersetzen (Prototyp ohne Touch): `a` wie Taste A, `b` wie Taste B,
 `u` Update suchen, `w` WLAN einrichten.
 
