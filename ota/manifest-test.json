@@ -1,7 +1,7 @@
 {
-  "version": "0.1.3",
-  "url": "https://github.com/e33b1711/xmax_led/releases/download/v0.1.3/sanduhr-0.1.3.bin",
-  "size": 1067872,
-  "sha256": "1c055b23311b80c92349afad2c6647b9cf2d07329012cfabd846db5eef6686f2",
-  "sig": "MEUCIQDen0M0itOYvk2eGnvjaBvR1bMk6fUGPq3skACK+hA08gIgGBek8l1bOK5tlolriaTFys8aAq+SmobMVBrxgV13KZc="
+  "version": "0.1.4",
+  "url": "https://github.com/e33b1711/xmax_led/releases/download/v0.1.4/sanduhr-0.1.4.bin",
+  "size": 1069360,
+  "sha256": "e6d37307c63a32634acc5083342d5a33b153582f5cd27a1f418d56da033250c7",
+  "sig": "MEUCIQC/LRboIvntWnBdvift/C5SuC75crZ/JyKwiB6mi3FKzwIgPub7wES8vEcxx9JvF1rLdyf+awfGkRWnWiSX9tl4QNA="
 }
