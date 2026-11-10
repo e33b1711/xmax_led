@@ -134,7 +134,7 @@ static Touch::Event serialCommands() {
     }
     if (c == 's')
       Serial.printf("Version %s, %s, Matrix %dx%d, Kanal %s, WLAN %s, Zeit %s, Sensor %s, Update: %s, Körner %d, Probe %s\n", FW_VERSION,
-                    settings.mode ? "Game of Life" : "Sanduhr", MATRIX_W, Leds::height(), settings.channel.c_str(), Net::connected() ? "verbunden" : (Net::configured() ? "getrennt" : "nicht eingerichtet"),
+                    settings.mode ? "Game of Life" : "Sanduhr", MATRIX_W, Leds::height(), settings.channel.c_str(), Net::status().c_str(),
                     Net::timeValid() ? "ok" : "fehlt", Imu::ok() ? "ok" : "fehlt", Updater::lastResult(), Sand::count(),
                     Health::pending() ? "ja" : "nein");
   }

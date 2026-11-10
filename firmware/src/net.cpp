@@ -132,6 +132,14 @@ void loop() {
 }
 
 bool connected() { return WiFi.status() == WL_CONNECTED; }
+
+String status() {
+  if (!configured()) return "nicht eingerichtet";
+  if (!connected()) return "getrennt";
+  int r = WiFi.RSSI();
+  const char *q = r > -67 ? "gut" : r > -75 ? "mittel" : r > -85 ? "schwach" : "sehr schwach";
+  return "verbunden, " + String(r) + " dBm (" + q + ")";
+}
 bool configured() { return settings.ssid.length() > 0; }
 bool ssidVisible() { return seen; }
 bool portalActive() { return portal; }
