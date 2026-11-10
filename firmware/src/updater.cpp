@@ -107,44 +107,93 @@ static void run() {
   Serial.printf("Update: %s -> %s (%d Bytes)\n", FW_VERSION, version.c_str(), size);
 
   st = DOWNLOADING;
-  if (!http.begin(client, binUrl)) return fail("Firmware: keine Verbindung");
-  code = http.GET();
-  if (code != 200) { http.end(); return fail("Firmware: HTTP %d", code); }
-  int len = http.getSize();
-  if (len != size || size <= 0) { http.end(); return fail("Firmware: falsche Größe"); }
-  if (!Update.begin(size, U_FLASH)) { http.end(); return fail("Kein Platz für das Update"); }
-
   mbedtls_md_context_t md;
   mbedtls_md_init(&md);
   mbedtls_md_setup(&md, mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), 0);
   mbedtls_md_starts(&md);
-  WiFiClient *s = http.getStreamPtr();
   static uint8_t buf[4096];
   int got = 0;
-  uint32_t lastData = millis();
-  while (got < size) {
-    int avail = s->available();
-    if (avail > 0) {
-      int n = s->readBytes(buf, min(avail, (int)sizeof(buf)));
-      if (n <= 0) continue;
-      mbedtls_md_update(&md, buf, n);
-      if (Update.write(buf, n) != (size_t)n) break;
-      got += n;
-      prog = (float)got / size;
-      lastData = millis();
-    } else {
-      if (millis() - lastData > 20000 || !http.connected()) break;
-      delay(5);
+  bool started = false, fatal = false;
+  String dl = binUrl;
+  // Weiterleitungen (github.com -> Download-Server) selbst auflösen: HTTPClient verwirft beim
+  // Folgen eigene Header, und ohne "Range" ließe sich ein abgebrochener Download nicht fortsetzen.
+  http.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
+  const char *keep[] = {"Location", "Content-Range"};
+  int tries = 0, hops = 0;
+  while (got < size && !fatal && tries < 6 && hops < 10) {
+    if (!http.begin(client, dl)) { tries++; delay(2000); continue; }
+    http.collectHeaders(keep, 2);
+    if (got > 0) http.addHeader("Range", "bytes=" + String(got) + "-");
+    code = http.GET();
+    if (code >= 300 && code < 400) {
+      dl = http.header("Location");
+      http.end();
+      hops++;
+      if (dl.isEmpty()) { fatal = true; snprintf(result, sizeof(result), "Firmware: Weiterleitung ohne Ziel"); }
+      continue;
+    }
+    bool resumeOk = got > 0 && code == 206 && http.header("Content-Range").startsWith("bytes " + String(got) + "-");
+    if (!(got == 0 && code == 200) && !resumeOk) {
+      http.end();
+      tries++;
+      Serial.printf("Update: Firmware HTTP %d bei %d Bytes, neuer Versuch\n", code, got);
+      delay(3000);
+      continue;
+    }
+    if (!started) {
+      if (http.getSize() != size) { http.end(); fatal = true; snprintf(result, sizeof(result), "Firmware: falsche Größe"); break; }
+      if (!Update.begin(size, U_FLASH)) { http.end(); fatal = true; snprintf(result, sizeof(result), "Kein Platz für das Update"); break; }
+      started = true;
+    }
+
+    WiFiClient *s = http.getStreamPtr();
+    uint32_t lastData = millis();
+    const char *why = "";
+    while (got < size) {
+      int avail = s->available();
+      if (avail > 0) {
+        int n = s->readBytes(buf, min(min(avail, (int)sizeof(buf)), size - got));
+        if (n <= 0) continue;
+        mbedtls_md_update(&md, buf, n);
+        if (Update.write(buf, n) != (size_t)n) { why = "Flash-Schreibfehler"; fatal = true; break; }
+        got += n;
+        prog = (float)got / size;
+        lastData = millis();
+        delay(1);   // anderen Tasks (WLAN, Leerlauf-Watchdog) Luft lassen
+      } else if (!s->connected()) {
+        why = "Verbindung getrennt";
+        break;
+      } else if (millis() - lastData > 15000) {
+        why = "keine Daten mehr (15 s)";
+        break;
+      } else {
+        delay(5);
+      }
+    }
+    http.end();
+    if (got < size) {
+      tries++;
+      Serial.printf("Update: Download unterbrochen bei %d von %d Bytes (%s), WLAN %d dBm, Speicher %u%s\n", got, size, why,
+                    WiFi.RSSI(), ESP.getFreeHeap(), fatal ? "" : ", setze fort");
+      if (fatal) snprintf(result, sizeof(result), "Firmware: %s", why);
+      else delay(2000);
     }
   }
-  http.end();
   uint8_t shaBin[32];
   char shaHex[65];
   mbedtls_md_finish(&md, shaBin);
   mbedtls_md_free(&md);
   hex(shaBin, 32, shaHex);
 
-  if (got != size) { Update.abort(); return fail("Download abgebrochen"); }
+  if (got != size) {
+    if (started) Update.abort();
+    if (fatal) {
+      char why[sizeof(result)];
+      strcpy(why, result);
+      return fail("%s", why);
+    }
+    return fail("Download abgebrochen bei %d von %d Bytes", got, size);
+  }
   if (shaWant != shaHex) { Update.abort(); return fail("Prüfsumme falsch"); }
   if (!signatureOk(version, shaHex, sig.c_str())) { Update.abort(); return fail("Signatur ungültig - nicht installiert"); }
   if (!Update.end(true)) { return fail("Aufspielen fehlgeschlagen"); }
