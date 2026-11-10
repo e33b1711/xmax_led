@@ -57,8 +57,12 @@ static bool signatureOk(const String &version, const char *shaHex, const char *s
   return ok;
 }
 
-static void fail(const char *why) {
-  snprintf(result, sizeof(result), "%s", why);
+static void fail(const char *fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  vsnprintf(result, sizeof(result), fmt, ap);
+  va_end(ap);
+  const char *why = result;
   Serial.printf("Update: %s\n", why);
   st = FAILED;
 }
@@ -73,9 +77,18 @@ static void run() {
   http.setTimeout(20000);
 
   String url = String(OTA_MANIFEST_BASE) + settings.channel + ".json?t=" + String(esp_random());
+  Serial.printf("Update: suche, Kanal %s, Speicher frei %u (Block %u)\n", settings.channel.c_str(),
+                ESP.getFreeHeap(), ESP.getMaxAllocHeap());
+  if (!Net::connected()) return fail("kein WLAN");
   if (!http.begin(client, url)) return fail("Manifest: keine Verbindung");
   int code = http.GET();
-  if (code != 200) { http.end(); snprintf(result, sizeof(result), "Manifest: HTTP %d", code); st = FAILED; return; }
+  if (code < 0) {
+    char tls[96] = "";
+    int e = client.lastError(tls, sizeof(tls));
+    http.end();
+    return fail("Manifest: %s (TLS %d %s)", HTTPClient::errorToString(code).c_str(), e, tls);
+  }
+  if (code != 200) { http.end(); return fail("Manifest: HTTP %d", code); }
   JsonDocument doc;
   if (deserializeJson(doc, http.getString())) { http.end(); return fail("Manifest unlesbar"); }
   http.end();
@@ -96,7 +109,7 @@ static void run() {
   st = DOWNLOADING;
   if (!http.begin(client, binUrl)) return fail("Firmware: keine Verbindung");
   code = http.GET();
-  if (code != 200) { http.end(); snprintf(result, sizeof(result), "Firmware: HTTP %d", code); st = FAILED; return; }
+  if (code != 200) { http.end(); return fail("Firmware: HTTP %d", code); }
   int len = http.getSize();
   if (len != size || size <= 0) { http.end(); return fail("Firmware: falsche Größe"); }
   if (!Update.begin(size, U_FLASH)) { http.end(); return fail("Kein Platz für das Update"); }
