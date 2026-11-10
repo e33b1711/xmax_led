@@ -21,7 +21,7 @@ später per Update übers Internet, nachts automatisch.
 |---|---|
 | Umdrehen | Sand läuft in die andere Hälfte |
 | Taste A kurz | Helligkeit (5 Stufen) |
-| Taste B kurz | Sanduhr: Laufzeit 1 / 3 / 5 / 10 / 15 / 30 min, wird kurz als Zahl gezeigt; Game of Life: neu starten |
+| Taste B kurz | Sanduhr: Laufzeit 1 / 3 / 5 / 10 / 15 / 30 min, wird kurz als Zahl gezeigt; Game of Life: Geschwindigkeit 1 / 2 / 4 / 6 / 10 / 15 Generationen/s |
 | Taste A 5 s | Betriebsart wechseln: Sanduhr ↔ Game of Life (wird gespeichert) |
 | Taste B 5 s | jetzt nach Updates suchen |
 | A + B 5 s | WLAN einrichten: WLAN-Symbol blinkt, Handy mit „Sanduhr-XXXX“ verbinden, Netz wählen |
@@ -37,7 +37,7 @@ pio run -e prototyp16 -t upload -t monitor     # Prototyp mit einer 16×16
 ```
 
 Serielle Konsole (115200 Baud): `t` Testbild, `i` Sensorwerte, `k` Touch-Werte, `s` Status, `?` Hilfe,
-`m` Matrixhöhe 16/32 umschalten (wird im Gerät gespeichert), `g` Sanduhr ↔ Game of Life.
+`m` Matrixhöhe 16/32 umschalten (wird im Gerät gespeichert), `g` Sanduhr ↔ Game of Life, `r` Game of Life neu starten.
 Lage von Hand (ohne Sensor): `,` / `.` Azimut −/+5° (Drehung in der Ebene, 180° = auf dem Kopf),
 `-` / `+` Elevation −/+5° (nach hinten kippen, 90° = flach), `0` Lage wieder vom Sensor.
 Die Tasten lassen sich dort ersetzen (Prototyp ohne Touch): `a` wie Taste A, `b` wie Taste B,

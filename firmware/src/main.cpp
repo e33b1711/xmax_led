@@ -3,7 +3,7 @@
 // Bedienung:
 //   Taste A kurz        Helligkeit (5 Stufen)
 //   Taste B kurz        Sanduhr: Laufzeit (1, 3, 5, 10, 15, 30 min), wird kurz als Zahl gezeigt
-//                       Game of Life: neu starten
+//                       Game of Life: Geschwindigkeit (1, 2, 4, 6, 10, 15 Generationen/s)
 //   Taste A 5 s         Betriebsart wechseln: Sanduhr <-> Game of Life
 //   Taste B 5 s         jetzt nach Updates suchen
 //   A + B 5 s           WLAN einrichten (eigenes WLAN "Sanduhr-XXXX", Handy verbinden)
@@ -12,7 +12,8 @@
 // Serielle Konsole (115200 Baud), ersetzt auch die Tasten (Prototyp ohne Touch):
 //   a = wie Taste A, b = wie Taste B, u = Update suchen (wie B 5 s), w = WLAN einrichten (wie A+B 5 s)
 //   t = Testbild 5 s, i = Sensorwerte, k = Touch-Werte, s = Status, ? = Hilfe,
-//   m = Matrixhöhe 16/32 umschalten (wird gespeichert), g = Betriebsart wechseln (wie A 5 s)
+//   m = Matrixhöhe 16/32 umschalten (wird gespeichert), g = Betriebsart wechseln (wie A 5 s),
+//   r = Game of Life neu starten
 //   , / . = Azimut -/+5°, - / + = Elevation -/+5°, 0 = Lage wieder vom Sensor (Lage von Hand)
 #include <Arduino.h>
 #include "config.h"
@@ -25,7 +26,7 @@
 #include "net.h"
 #include "updater.h"
 
-enum Overlay : uint8_t { OV_NONE, OV_BRIGHT, OV_DURATION, OV_SEARCH };
+enum Overlay : uint8_t { OV_NONE, OV_BRIGHT, OV_DURATION, OV_SPEED, OV_SEARCH };
 static Overlay overlay = OV_NONE;
 static uint32_t overlayUntil = 0, testUntil = 0;
 static bool streamImu = false, streamTouch = false;
@@ -60,6 +61,8 @@ static void drawOverlay() {
     Leds::barH(y0 + 4, f, CRGB(255, 200, 120));
   } else if (overlay == OV_DURATION) {
     Leds::number(settings.durationS() / 60, y0 + 1, CRGB(255, 150, 30));
+  } else if (overlay == OV_SPEED) {
+    Leds::number(settings.lifeSpeed(), y0 + 1, CRGB(150, 255, 170));
   } else if (overlay == OV_SEARCH) {
     int k = (millis() / 150) % MATRIX_W;
     Leds::set(k, y0 + 3, CRGB(40, 120, 255));
@@ -92,7 +95,7 @@ static void drawUpdate() {
 
 static void printHelp() {
   Serial.println("Befehle: a Helligkeit, b Laufzeit, u Update suchen, w WLAN einrichten,\n"
-                 "         g Sanduhr/Game of Life, t Testbild, i Sensorwerte, k Touch-Werte, s Status,\n"
+                 "         g Sanduhr/Game of Life, r Game of Life neu, t Testbild, i Sensorwerte, k Touch-Werte, s Status,\n"
                  "         m Matrix 16/32, ? Hilfe\n"
                  "         , . Azimut -/+5°, - + Elevation -/+5°, 0 Lage wieder vom Sensor");
 }
@@ -107,6 +110,7 @@ static Touch::Event serialCommands() {
     if (c == 'u') ev = Touch::B_LONG;
     if (c == 'w') ev = Touch::AB_LONG;
     if (c == 'g') ev = Touch::A_LONG;
+    if (c == 'r') Life::reseed();
     if (c == '?' || c == 'h') printHelp();
     if (c == 't') testUntil = millis() + 5000;
     if (c == 'i') streamImu = !streamImu;
@@ -149,6 +153,7 @@ void setup() {
   Touch::begin();
   Sand::begin(h, 0.8f);
   Life::begin(h);
+  Life::setSpeed(settings.lifeSpeed());
   Net::begin();
   Updater::begin();
   printHelp();
@@ -178,7 +183,10 @@ void loop() {
       break;
     case Touch::B_SHORT:
       if (settings.mode == 1) {
-        Life::reseed();
+        settings.lifeSpeedIdx = (settings.lifeSpeedIdx + 1) % N_LIFE_SPEED;
+        settings.save();
+        Life::setSpeed(settings.lifeSpeed());
+        showOverlay(OV_SPEED, 1500);
         break;
       }
       settings.durIdx = (settings.durIdx + 1) % N_DUR;

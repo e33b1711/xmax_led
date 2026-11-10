@@ -16,6 +16,7 @@ void Settings::load() {
   otaMinute = p.getUChar("otamin", 0);
   height = p.getUChar("height", 0);
   mode = p.getUChar("mode", 0);
+  lifeSpeedIdx = p.getUChar("lifespd", lifeSpeedIdx);
   p.end();
   bool changed = false;
   if (!hasMinute) {
@@ -41,5 +42,6 @@ void Settings::save() {
   p.putUChar("otamin", otaMinute);
   p.putUChar("height", height);
   p.putUChar("mode", mode);
+  p.putUChar("lifespd", lifeSpeedIdx);
   p.end();
 }

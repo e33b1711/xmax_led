@@ -9,7 +9,7 @@ static int H = MATRIX_H;
 static uint8_t age[W * HMAX], next[W * HMAX];   // 0 = tot, sonst Alter in Generationen (max. 255)
 static uint32_t gen = 0, lastStep = 0, stuckSince = 0;
 static int pop = 0;
-static const uint32_t STEP_MS = 160;             // ~6 Generationen pro Sekunde
+static uint32_t stepMs = 166;                    // Takt, siehe setSpeed()
 static const uint32_t STUCK_MS = 3000;           // so lange den Endzustand zeigen, dann neu
 static const uint32_t MAX_GEN = 1500;            // spätestens dann neu, falls es sich langsam wiederholt
 static const int HIST = 16;
@@ -40,8 +40,10 @@ void begin(int height) {
   lastStep = millis();
 }
 
+void setSpeed(int gensPerSecond) { stepMs = 1000 / max(1, gensPerSecond); }
+
 void step(uint32_t now) {
-  if (now - lastStep < STEP_MS) return;
+  if (now - lastStep < stepMs) return;
   lastStep = now;
 
   if (stuckSince) {
