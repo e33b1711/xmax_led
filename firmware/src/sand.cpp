@@ -5,7 +5,8 @@
 
 namespace Sand {
 
-static const int W = MATRIX_W, H = MATRIX_H;
+static const int W = MATRIX_W, HMAX = MATRIX_H_MAX;
+static int H = MATRIX_H;
 static const float G = 140.0f;        // LEDs/s² bei 1 g
 static const int SUB = 2;
 static const float BOUNCE = 0.35f;
@@ -15,13 +16,13 @@ struct Grain {
   uint8_t shade;   // Helligkeitsvariante je Korn
 };
 
-static uint8_t inside[W * H], wall[W * H];
-static int16_t occ[W * H];             // Korn-Nummer + 1, 0 = frei
-static Grain grains[W * H];
+static uint8_t inside[W * HMAX], wall[W * HMAX];
+static int16_t occ[W * HMAX];          // Korn-Nummer + 1, 0 = frei
+static Grain grains[W * HMAX];
 static int nGrains = 0;
 static float tokens = 0;               // Durchlass am Hals (Körner)
 static float fillFrac = 0.8f;
-static int upperCells[W * H][2];
+static int upperCells[W * HMAX][2];
 static int nUpper = 0;
 
 static inline int idx(int x, int y) { return x * H + y; }
@@ -72,7 +73,8 @@ static void place(bool flipped) {
   tokens = 0;
 }
 
-void begin(float fill) {
+void begin(int height, float fill) {
+  H = height;
   fillFrac = fill;
   buildGlass();
   place(false);

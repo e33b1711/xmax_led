@@ -35,9 +35,13 @@ pio run -e sanduhr -t upload -t monitor        # 16×32
 pio run -e prototyp16 -t upload -t monitor     # Prototyp mit einer 16×16
 ```
 
-Serielle Konsole (115200 Baud): `t` Testbild, `i` Sensorwerte, `k` Touch-Werte, `s` Status, `?` Hilfe.
+Serielle Konsole (115200 Baud): `t` Testbild, `i` Sensorwerte, `k` Touch-Werte, `s` Status, `?` Hilfe,
+`m` Matrixhöhe 16/32 umschalten (wird im Gerät gespeichert).
 Die Tasten lassen sich dort ersetzen (Prototyp ohne Touch): `a` wie Taste A, `b` wie Taste B,
 `u` Update suchen, `w` WLAN einrichten.
+
+Alle Geräte bekommen per Update dieselbe Firmware. Die Matrixhöhe merkt sich jedes Gerät selbst:
+beim ersten Start wird sie festgehalten (`prototyp16` → 16, sonst 32); umstellen mit `m` auf der Konsole.
 
 Am Prototyp einmal festlegen (in `firmware/src/config.h`):
 - **Verdrahtung:** `t` zeigt oben links rot, oben rechts grün, unten links blau, unten rechts weiß und

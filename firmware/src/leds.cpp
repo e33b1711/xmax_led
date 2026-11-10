@@ -1,11 +1,24 @@
 #include "leds.h"
 
-CRGB leds[NUM_LEDS];
+CRGB leds[NUM_LEDS_MAX];
 
 namespace Leds {
 
-void begin() {
-  FastLED.addLeds<WS2812B, LED_PIN, GRB>(leds, NUM_LEDS);
+static int H = MATRIX_H;
+static CLEDController *ctrl = nullptr;
+
+int height() { return H; }
+int count() { return MATRIX_W * H; }
+
+void setHeight(int h) {
+  H = (h == 16) ? 16 : 32;
+  fill_solid(leds, NUM_LEDS_MAX, CRGB::Black);
+  if (ctrl) ctrl->setLeds(leds, count());
+}
+
+void begin(int h) {
+  setHeight(h);
+  ctrl = &FastLED.addLeds<WS2812B, LED_PIN, GRB>(leds, count());
   // FastLED rechnet den Strom selbst und dimmt das ganze Bild, wenn es zu viel wird
   FastLED.setMaxPowerInVoltsAndMilliamps(5, LED_MAX_MA);
   FastLED.setCorrection(TypicalLEDStrip);
@@ -16,7 +29,7 @@ void begin() {
 uint16_t xy(int x, int y) {
   int panel = y / PANEL, py = y % PANEL;
 #if !CHAIN_TOP_PANEL_FIRST
-  panel = (MATRIX_H / PANEL - 1) - panel;
+  panel = (H / PANEL - 1) - panel;
 #endif
 #if PANEL_ROWS_FROM_BOTTOM
   int row = PANEL - 1 - py;
@@ -29,11 +42,11 @@ uint16_t xy(int x, int y) {
 }
 
 void set(int x, int y, const CRGB &c) {
-  if (x < 0 || y < 0 || x >= MATRIX_W || y >= MATRIX_H) return;
+  if (x < 0 || y < 0 || x >= MATRIX_W || y >= H) return;
   leds[xy(x, y)] = c;
 }
 
-void clear() { fill_solid(leds, NUM_LEDS, CRGB::Black); }
+void clear() { fill_solid(leds, NUM_LEDS_MAX, CRGB::Black); }
 
 void show(uint8_t brightness) {
   FastLED.setBrightness(min<uint8_t>(brightness, BRIGHT_MAX));
@@ -44,9 +57,9 @@ void testPattern() {
   clear();
   set(0, 0, CRGB::Red);
   set(MATRIX_W - 1, 0, CRGB::Green);
-  set(0, MATRIX_H - 1, CRGB::Blue);
-  set(MATRIX_W - 1, MATRIX_H - 1, CRGB::White);
-  for (int y = PANEL - 1; y < MATRIX_H - 1; y += PANEL)
+  set(0, H - 1, CRGB::Blue);
+  set(MATRIX_W - 1, H - 1, CRGB::White);
+  for (int y = PANEL - 1; y < H - 1; y += PANEL)
     for (int x = 2; x < MATRIX_W - 2; x++) set(x, y, CRGB(60, 50, 0));
 }
 

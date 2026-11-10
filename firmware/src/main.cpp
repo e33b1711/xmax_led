@@ -9,7 +9,8 @@
 //
 // Serielle Konsole (115200 Baud), ersetzt auch die Tasten (Prototyp ohne Touch):
 //   a = wie Taste A, b = wie Taste B, u = Update suchen (wie B 5 s), w = WLAN einrichten (wie A+B 5 s)
-//   t = Testbild 5 s, i = Sensorwerte, k = Touch-Werte, s = Status, ? = Hilfe
+//   t = Testbild 5 s, i = Sensorwerte, k = Touch-Werte, s = Status, ? = Hilfe,
+//   m = Matrixhöhe 16/32 umschalten (wird gespeichert)
 #include <Arduino.h>
 #include "config.h"
 #include "settings.h"
@@ -33,7 +34,7 @@ static void showOverlay(Overlay o, uint32_t ms) {
 static void drawOverlay() {
   if (overlay == OV_NONE || millis() > overlayUntil) { overlay = OV_NONE; return; }
   // Fläche abdunkeln, damit die Anzeige lesbar ist
-  int y0 = MATRIX_H / 2 - 4;
+  int y0 = Leds::height() / 2 - 4;
   for (int y = y0; y < y0 + 8; y++)
     for (int x = 0; x < MATRIX_W; x++) Leds::set(x, y, CRGB::Black);
   if (overlay == OV_BRIGHT) {
@@ -53,7 +54,7 @@ static void drawOverlay() {
 static void drawPortal() {
   Leds::clear();
   bool on = (millis() / 600) % 2;
-  int cx = MATRIX_W / 2, cy = MATRIX_H / 2 + 3;
+  int cx = MATRIX_W / 2, cy = Leds::height() / 2 + 3;
   CRGB c = on ? CRGB(40, 120, 255) : CRGB(8, 24, 50);
   for (int r = 1; r <= 3; r++)
     for (int a = -45; a <= 45; a += 9) {
@@ -67,14 +68,14 @@ static void drawPortal() {
 static void drawUpdate() {
   Leds::clear();
   float p = Updater::progress();
-  int n = (int)(p * NUM_LEDS);
+  int n = (int)(p * Leds::count());
   // füllt sich von unten wie Sand
-  for (int i = 0; i < n; i++) Leds::set(i % MATRIX_W, MATRIX_H - 1 - i / MATRIX_W, CRGB(10, 40, 90));
+  for (int i = 0; i < n; i++) Leds::set(i % MATRIX_W, Leds::height() - 1 - i / MATRIX_W, CRGB(10, 40, 90));
 }
 
 static void printHelp() {
   Serial.println("Befehle: a Helligkeit, b Laufzeit, u Update suchen, w WLAN einrichten,\n"
-                 "         t Testbild, i Sensorwerte, k Touch-Werte, s Status, ? Hilfe");
+                 "         t Testbild, i Sensorwerte, k Touch-Werte, s Status, m Matrix 16/32, ? Hilfe");
 }
 
 // Liefert ein Tasten-Ereignis, wenn ein Befehl eine Taste ersetzt
@@ -90,9 +91,16 @@ static Touch::Event serialCommands() {
     if (c == 't') testUntil = millis() + 5000;
     if (c == 'i') streamImu = !streamImu;
     if (c == 'k') streamTouch = !streamTouch;
+    if (c == 'm') {
+      settings.height = Leds::height() == 32 ? 16 : 32;
+      settings.save();
+      Leds::setHeight(settings.height);
+      Sand::begin(settings.height, 0.8f);
+      Serial.printf("Matrix jetzt %dx%d (gespeichert)\n", MATRIX_W, settings.height);
+    }
     if (c == 's')
-      Serial.printf("Version %s, Kanal %s, WLAN %s, Zeit %s, Sensor %s, Update: %s, Körner %d, Probe %s\n", FW_VERSION,
-                    settings.channel.c_str(), Net::connected() ? "verbunden" : (Net::configured() ? "getrennt" : "nicht eingerichtet"),
+      Serial.printf("Version %s, Matrix %dx%d, Kanal %s, WLAN %s, Zeit %s, Sensor %s, Update: %s, Körner %d, Probe %s\n", FW_VERSION,
+                    MATRIX_W, Leds::height(), settings.channel.c_str(), Net::connected() ? "verbunden" : (Net::configured() ? "getrennt" : "nicht eingerichtet"),
                     Net::timeValid() ? "ok" : "fehlt", Imu::ok() ? "ok" : "fehlt", Updater::lastResult(), Sand::count(),
                     Health::pending() ? "ja" : "nein");
   }
@@ -102,13 +110,14 @@ static Touch::Event serialCommands() {
 void setup() {
   Serial.begin(115200);
   delay(200);
-  Serial.printf("\nLED-Sanduhr %s (%dx%d)\n", FW_VERSION, MATRIX_W, MATRIX_H);
   settings.load();
-  Leds::begin();
+  int h = settings.height;
+  Serial.printf("\nLED-Sanduhr %s (%dx%d)\n", FW_VERSION, MATRIX_W, h);
+  Leds::begin(h);
   Health::begin();
   Imu::begin();
   Touch::begin();
-  Sand::begin(0.8f);
+  Sand::begin(h, 0.8f);
   Net::begin();
   Updater::begin();
   printHelp();

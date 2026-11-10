@@ -7,11 +7,14 @@
 
 // ---------- Matrix ----------
 #define MATRIX_W 16
+// Höhe wird im Gerät gespeichert (serieller Befehl m), damit alle Geräte dieselbe Firmware
+// bekommen. MATRIX_H ist nur der Startwert, solange nichts gespeichert ist.
 #ifndef MATRIX_H
 #define MATRIX_H 32            // zwei 16x16 übereinander; Prototyp: 16
 #endif
+#define MATRIX_H_MAX 32
 #define PANEL 16               // Kantenlänge eines Panels
-#define NUM_LEDS (MATRIX_W * MATRIX_H)
+#define NUM_LEDS_MAX (MATRIX_W * MATRIX_H_MAX)
 #define LED_PIN 16
 
 // Verdrahtung innerhalb eines Panels (Schlangenlinien). Werte wie bei der HA-Matrix, wenn der

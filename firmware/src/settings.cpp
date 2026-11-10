@@ -1,5 +1,6 @@
 #include "settings.h"
 #include <Preferences.h>
+#include "config.h"
 
 Settings settings;
 
@@ -13,11 +14,19 @@ void Settings::load() {
   channel = p.getString("channel", "stabil");
   bool hasMinute = p.isKey("otamin");
   otaMinute = p.getUChar("otamin", 0);
+  height = p.getUChar("height", 0);
   p.end();
+  bool changed = false;
   if (!hasMinute) {
     otaMinute = esp_random() % 180;   // 0-179 Minuten nach Beginn des Nachtfensters
-    save();
+    changed = true;
   }
+  // Matrixhöhe beim ersten Start festhalten, damit spätere Updates sie nicht ändern
+  if (height != 16 && height != 32) {
+    height = MATRIX_H;
+    changed = true;
+  }
+  if (changed) save();
 }
 
 void Settings::save() {
@@ -29,5 +38,6 @@ void Settings::save() {
   p.putString("pass", pass);
   p.putString("channel", channel);
   p.putUChar("otamin", otaMinute);
+  p.putUChar("height", height);
   p.end();
 }
