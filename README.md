@@ -28,6 +28,10 @@ später per Update übers Internet, nachts automatisch.
 
 Ohne WLAN läuft die Sanduhr ganz normal, sie bekommt dann nur keine Updates.
 
+**Mesh / Repeater:** Die Sanduhr verbindet sich mit dem stärksten Knoten und prüft danach regelmäßig
+(bei schwachem Pegel alle 10 min, sonst stündlich), ob ein um mindestens 8 dB stärkerer Knoten
+desselben Netzes da ist, und wechselt dann. `s` zeigt Pegel, Kanal und Knoten.
+
 ## Erstinstallation (per USB, einmal je Gerät)
 
 ```
@@ -37,7 +41,7 @@ pio run -e prototyp16 -t upload -t monitor     # Prototyp mit einer 16×16
 ```
 
 Serielle Konsole (115200 Baud): `t` Testbild, `i` Sensorwerte, `k` Touch-Werte, `s` Status, `?` Hilfe,
-`m` Matrixhöhe 16/32 umschalten (wird im Gerät gespeichert), `g` Sanduhr ↔ Game of Life, `r` Game of Life neu starten.
+`m` Matrixhöhe 16/32 umschalten (wird im Gerät gespeichert), `g` Sanduhr ↔ Game of Life, `r` Game of Life neu starten, `n` sichtbare WLAN-Netze mit Pegel.
 Lage von Hand (ohne Sensor): `,` / `.` Azimut −/+5° (Drehung in der Ebene, 180° = auf dem Kopf),
 `-` / `+` Elevation −/+5° (nach hinten kippen, 90° = flach), `0` Lage wieder vom Sensor.
 Die Tasten lassen sich dort ersetzen (Prototyp ohne Touch): `a` wie Taste A, `b` wie Taste B,

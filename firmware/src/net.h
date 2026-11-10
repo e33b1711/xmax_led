@@ -10,6 +10,7 @@ String status();           // "verbunden, -63 dBm (gut)", "getrennt", "nicht ein
 bool timeValid();          // Uhrzeit per NTP bekommen
 bool configured();         // ein WLAN ist eingetragen
 bool ssidVisible();        // eingetragenes Netz war beim letzten Suchen zu sehen
+void listNetworks();       // sichtbare Netze mit Pegel ausgeben (Konsole n)
 void startPortal();        // eigenes WLAN "Sanduhr-XXXX" mit Einrichtungsseite
 bool portalActive();
 String deviceName();

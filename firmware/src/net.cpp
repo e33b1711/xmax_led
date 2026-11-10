@@ -5,6 +5,7 @@
 #include <time.h>
 #include "config.h"
 #include "settings.h"
+#include "updater.h"
 
 namespace Net {
 
@@ -14,6 +15,15 @@ static bool portal = false;
 static uint32_t portalStart = 0, lastScan = 0;
 static bool seen = false;
 static String options;   // <option>-Liste der gefundenen Netze
+
+// Mesh / Repeater: mehrere Zugangspunkte mit demselben Namen. Der ESP32 bleibt sonst ewig am
+// ersten, mit dem er sich verbunden hat - auch wenn der nahe Knoten nur kurz weg war.
+// Darum regelmäßig nachsehen und zu einem deutlich stärkeren Knoten wechseln.
+static const int ROAM_BETTER_DB = 8;               // so viel stärker muss der andere sein
+static uint32_t lastRoamCheck = 0;
+static bool roamScan = false, printScan = false;
+static uint8_t bestBssid[6];
+static int bestRssi = -127, bestChannel = 0;
 static const uint32_t PORTAL_TIMEOUT = 10 * 60 * 1000;
 
 String deviceName() {
@@ -42,20 +52,53 @@ static bool pollScan() {
   if (n < 0) return false;   // fehlgeschlagen
   options = "";
   seen = false;
+  bestRssi = -127;
+  if (printScan) Serial.printf("WLAN: %d Netze sichtbar (* = eigenes, > = verbunden)\n", n);
+  String cur = connected() ? WiFi.BSSIDstr() : "";
   for (int i = 0; i < n; i++) {
     String s = WiFi.SSID(i);
-    if (s == settings.ssid) seen = true;
+    bool own = s == settings.ssid && !s.isEmpty();
+    if (printScan)
+      Serial.printf("  %c%c %4d dBm  Kanal %2d  %s  %s\n", own ? '*' : ' ', WiFi.BSSIDstr(i) == cur ? '>' : ' ',
+                    WiFi.RSSI(i), WiFi.channel(i), WiFi.BSSIDstr(i).c_str(), s.c_str());
+    if (own) {
+      seen = true;
+      if (WiFi.RSSI(i) > bestRssi) {
+        bestRssi = WiFi.RSSI(i);
+        bestChannel = WiFi.channel(i);
+        memcpy(bestBssid, WiFi.BSSID(i), 6);
+      }
+    }
     if (options.indexOf(">" + s + "<") >= 0 || s.isEmpty()) continue;
     options += "<option>" + s + "</option>";
   }
   WiFi.scanDelete();
+  printScan = false;
   return true;
+}
+
+void listNetworks() {
+  printScan = true;
+  startScan();
+}
+
+// Nach einem Scan: zu einem deutlich stärkeren Knoten desselben Netzes wechseln
+static void maybeRoam() {
+  if (!connected() || bestRssi == -127) return;
+  int cur = WiFi.RSSI();
+  if (memcmp(bestBssid, WiFi.BSSID(), 6) == 0 || bestRssi < cur + ROAM_BETTER_DB) return;
+  Serial.printf("WLAN: wechsle zu stärkerem Knoten %02X:%02X:%02X:%02X:%02X:%02X (%d dBm statt %d dBm)\n", bestBssid[0],
+                bestBssid[1], bestBssid[2], bestBssid[3], bestBssid[4], bestBssid[5], bestRssi, cur);
+  WiFi.begin(settings.ssid.c_str(), settings.pass.c_str(), bestChannel, bestBssid);
 }
 
 void begin() {
   WiFi.persistent(false);
   WiFi.setHostname(deviceName().c_str());
   configTzTime(TZ_INFO, "pool.ntp.org", "time.google.com");
+  // Alle Kanäle absuchen und den stärksten Zugangspunkt nehmen statt des ersten gefundenen
+  WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
+  WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);
   if (configured()) {
     WiFi.mode(WIFI_STA);
     WiFi.setAutoReconnect(true);
@@ -129,6 +172,20 @@ void loop() {
   // Ist das Netz überhaupt zu sehen? (für die Gesundheitsprüfung nach Updates)
   if (configured() && !connected() && !scanning && millis() - lastScan > 60000) startScan();
   if (scanDone && configured() && !connected()) WiFi.begin(settings.ssid.c_str(), settings.pass.c_str());
+
+  // Knoten prüfen: 1 min nach dem Start, dann bei schwachem Pegel alle 10 min, sonst stündlich.
+  // Nicht während eines Updates oder des Probelaufs (kurzer Verbindungsabbruch beim Wechsel).
+  if (scanDone && roamScan) {
+    roamScan = false;
+    maybeRoam();
+  }
+  uint32_t every = !lastRoamCheck ? 60000UL : (WiFi.RSSI() < -70 ? 10 * 60000UL : 60 * 60000UL);
+  bool busy = Updater::state() == Updater::CHECKING || Updater::state() == Updater::DOWNLOADING || Health::pending();
+  if (connected() && !scanning && !busy && millis() - lastRoamCheck > every) {
+    lastRoamCheck = millis();
+    roamScan = true;
+    startScan();
+  }
 }
 
 bool connected() { return WiFi.status() == WL_CONNECTED; }
@@ -138,7 +195,7 @@ String status() {
   if (!connected()) return "getrennt";
   int r = WiFi.RSSI();
   const char *q = r > -67 ? "gut" : r > -75 ? "mittel" : r > -85 ? "schwach" : "sehr schwach";
-  return "verbunden, " + String(r) + " dBm (" + q + ")";
+  return "verbunden, " + String(r) + " dBm (" + q + "), Kanal " + String(WiFi.channel()) + ", Knoten " + WiFi.BSSIDstr();
 }
 bool configured() { return settings.ssid.length() > 0; }
 bool ssidVisible() { return seen; }

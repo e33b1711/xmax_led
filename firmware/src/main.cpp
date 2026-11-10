@@ -13,7 +13,7 @@
 //   a = wie Taste A, b = wie Taste B, u = Update suchen (wie B 5 s), w = WLAN einrichten (wie A+B 5 s)
 //   t = Testbild 5 s, i = Sensorwerte, k = Touch-Werte, s = Status, ? = Hilfe,
 //   m = Matrixhöhe 16/32 umschalten (wird gespeichert), g = Betriebsart wechseln (wie A 5 s),
-//   r = Game of Life neu starten
+//   r = Game of Life neu starten, n = sichtbare WLAN-Netze mit Pegel
 //   , / . = Azimut -/+5°, - / + = Elevation -/+5°, 0 = Lage wieder vom Sensor (Lage von Hand)
 #include <Arduino.h>
 #include "config.h"
@@ -96,7 +96,7 @@ static void drawUpdate() {
 static void printHelp() {
   Serial.println("Befehle: a Helligkeit, b Laufzeit (Game of Life: Tempo), u Update suchen, w WLAN einrichten,\n"
                  "         g Sanduhr/Game of Life, r Game of Life neu, t Testbild, i Sensorwerte, k Touch-Werte, s Status,\n"
-                 "         m Matrix 16/32, ? Hilfe\n"
+                 "         m Matrix 16/32, n WLAN-Netze, ? Hilfe\n"
                  "         , . Azimut -/+5°, - + Elevation -/+5°, 0 Lage wieder vom Sensor");
 }
 
@@ -111,6 +111,7 @@ static Touch::Event serialCommands() {
     if (c == 'w') ev = Touch::AB_LONG;
     if (c == 'g') ev = Touch::A_LONG;
     if (c == 'r') Life::reseed();
+    if (c == 'n') Net::listNetworks();
     if (c == '?' || c == 'h') printHelp();
     if (c == 't') testUntil = millis() + 5000;
     if (c == 'i') streamImu = !streamImu;
