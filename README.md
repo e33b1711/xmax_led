@@ -14,6 +14,7 @@ später per Update übers Internet, nachts automatisch.
 | `tools/` | Release bauen und signieren, für alle freigeben, Notbremse |
 | `ota/` | Update-Manifeste, die die Sanduhren abfragen (`manifest-test.json`, `manifest-stabil.json`) |
 | `simulation/` | Browser-Simulationen: Sanduhr/Uhr/Ball, Wasserglas |
+| `hardware/` | Schaltplan (`schaltplan.html`, im Browser öffnen) |
 
 ## Bedienung
 
@@ -90,6 +91,8 @@ Updates annehmen. **Geht er verloren, gibt es für die Geschenke nie wieder ein 
 Also sicher aufbewahren, z. B. im Passwortmanager. Er gehört nie ins Repo.
 
 ## Hardware
+
+Schaltplan: `hardware/schaltplan.html` (online: https://claude.ai/artifact/3Tvs9pETAYv3P1HzrV9PCz).
 
 - **Matrix:** 2× 16×16 WS2812B übereinander, Daten an GPIO16 über 330–470 Ω, besser mit Pegelwandler
   74AHCT125. Strom an beiden Panels einspeisen, Kabel ≥ 1,5 mm², Sicherung 5 A, 1000 µF am Eingang.

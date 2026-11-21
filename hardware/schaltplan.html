@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="de">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sanduhr Schaltplan</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap">
+<style>
+/* Layout: ein breiter Schaltplan oben, darunter zwei Spalten mit Pinbelegung und Prüfliste */
+:root {
+  --bg: #f3f5f7; --paper: #ffffff; --fg: #1d2630; --muted: #5d6a78; --line: #c9d1da;
+  --v5: #c8322b; --gnd: #2a3440; --data: #1f63c4; --v33: #d07a00; --i2c: #7b3fb5; --touch: #2b8a4b; --cu: #c98a4b;
+  --sans: "IBM Plex Sans", system-ui, sans-serif; --mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #12171d; --paper: #1a2129; --fg: #e3e8ee; --muted: #93a1b0; --line: #34404c;
+  --v5: #ff6b61; --gnd: #c9d3dd; --data: #6aa8ff; --v33: #ffb347; --i2c: #c396f0; --touch: #5fd38a; --cu: #e0a66a; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #12171d; --paper: #1a2129; --fg: #e3e8ee; --muted: #93a1b0; --line: #34404c;
+  --v5: #ff6b61; --gnd: #c9d3dd; --data: #6aa8ff; --v33: #ffb347; --i2c: #c396f0; --touch: #5fd38a; --cu: #e0a66a; color-scheme: dark }
+body { background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 15px; line-height: 1.55; }
+main { max-width: 1120px; margin: 0 auto; padding-block: 28px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 24px; }
+h1 { font-size: 1.6rem; margin: 0; text-wrap: balance; }
+h2 { font-size: 1.05rem; margin: 0 0 8px; }
+.lead { color: var(--muted); margin: 4px 0 0; max-width: 70ch; }
+.sheet { background: var(--paper); border: 1px solid var(--line); border-radius: 6px; overflow-x: auto; }
+.sheet svg { display: block; min-width: 820px; width: 100%; height: auto; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 13px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 22px; height: 0; border-top: 3px solid; display: inline-block; }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; }
+.cols > section { min-width: 0; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+td, th { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 600; }
+td:first-child { font-family: var(--mono); white-space: nowrap; }
+code { font-family: var(--mono); font-size: .92em; }
+ol, ul { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; }
+
+/* SVG */
+svg text { font-family: var(--mono); font-size: 12px; fill: var(--fg); }
+svg .t-title { font-family: var(--sans); font-weight: 600; font-size: 15px; }
+svg .t-sub { fill: var(--muted); font-size: 11px; }
+svg .t-pin { font-size: 11px; fill: var(--muted); }
+svg .box { fill: var(--paper); stroke: var(--fg); stroke-width: 1.6; }
+svg .box-later { fill: var(--paper); stroke: var(--muted); stroke-width: 1.4; stroke-dasharray: 6 4; }
+svg .led { fill: var(--line); }
+svg .w5 { stroke: var(--v5); stroke-width: 3.2; fill: none; }
+svg .wg { stroke: var(--gnd); stroke-width: 2; fill: none; }
+svg .wd { stroke: var(--data); stroke-width: 2; fill: none; }
+svg .w33 { stroke: var(--v33); stroke-width: 2; fill: none; stroke-dasharray: 6 4; }
+svg .wi { stroke: var(--i2c); stroke-width: 2; fill: none; stroke-dasharray: 6 4; }
+svg .wt { stroke: var(--touch); stroke-width: 2; fill: none; stroke-dasharray: 6 4; }
+svg .part { fill: var(--paper); stroke: var(--fg); stroke-width: 1.8; }
+svg .solid { fill: var(--fg); stroke: var(--fg); stroke-width: 1.8; }
+svg .dot5 { fill: var(--v5); }
+svg .pad { fill: var(--cu); stroke: var(--fg); stroke-width: 1.2; }
+svg .note5 { fill: var(--v5); }
+</style>
+
+<main>
+  <header>
+    <h1>Sanduhr Schaltplan</h1>
+    <p class="lead">ESP32 mit zwei 16×16-WS2812B-Panels, Pegelwandler, ICM-20948 und zwei Touch-Tasten. Die Pins stimmen mit <code>firmware/src/config.h</code> überein. Gestrichelt gezeichnete Teile (Sensor, Touch) kannst du später ergänzen.</p>
+  </header>
+
+  <div class="sheet">
+  <svg viewBox="0 0 1100 600" role="img" aria-label="Schaltplan der LED-Sanduhr">
+    <defs>
+      <g id="gnd"><path class="wg" d="M0 0 V12 M-12 12 H12 M-7 17 H7 M-3 22 H3"/></g>
+    </defs>
+
+    <!-- Netzteil, Sicherung, 5-V-Schiene -->
+    <rect class="box" x="20" y="70" width="100" height="60" rx="3"/>
+    <text class="t-title" x="70" y="96" text-anchor="middle">Netzteil</text>
+    <text class="t-sub" x="70" y="114" text-anchor="middle">5 V · 6–8 A</text>
+    <path class="w5" d="M120 100 H140"/>
+    <rect class="part" x="140" y="92" width="50" height="16"/>
+    <path class="wg" d="M140 100 H190"/>
+    <text x="165" y="84" text-anchor="middle">Sicherung 5 A</text>
+    <path class="w5" d="M190 100 H1040 V260"/>
+    <text class="note5" x="215" y="88">+5 V</text>
+    <text class="t-sub" x="620" y="88">Stromkabel ≥ 1,5 mm², an beiden Panels einspeisen</text>
+    <path class="wg" d="M70 130 V150"/><use href="#gnd" x="70" y="150"/>
+    <text class="t-sub" x="30" y="56">Hohlbuchse ≥ 5 A</text>
+
+    <!-- Schottky zum ESP -->
+    <circle class="dot5" cx="260" cy="100" r="4"/>
+    <path class="w5" d="M260 100 V172"/>
+    <path class="solid" d="M250 172 L270 172 L260 188 Z"/>
+    <path class="wg" d="M249 188 H271"/>
+    <path class="w5" d="M260 188 V260"/>
+    <text x="276" y="178">SS34 / 1N5819</text>
+    <text class="t-sub" x="276" y="193">Schottky, Strich zum ESP</text>
+
+    <!-- ESP32 -->
+    <rect class="box" x="220" y="260" width="180" height="280" rx="3"/>
+    <text class="t-title" x="310" y="362" text-anchor="middle">ESP32</text>
+    <text class="t-sub" x="310" y="378" text-anchor="middle">WROOM-32</text>
+    <text class="t-pin" x="260" y="279" text-anchor="middle">VIN/5V</text>
+    <text class="t-pin" x="260" y="530" text-anchor="middle">GND</text>
+    <text class="t-pin" x="392" y="324" text-anchor="end">GPIO16</text>
+    <text class="t-pin" x="392" y="474" text-anchor="end">3V3</text>
+    <text class="t-pin" x="392" y="504" text-anchor="end">GPIO21</text>
+    <text class="t-pin" x="392" y="529" text-anchor="end">GPIO22</text>
+    <text class="t-pin" x="228" y="384">GPIO4</text>
+    <text class="t-pin" x="228" y="434">GPIO13</text>
+    <path class="wg" d="M260 540 V560"/><use href="#gnd" x="260" y="560"/>
+
+    <!-- Touch -->
+    <path class="wt" d="M220 380 H110"/>
+    <path class="wt" d="M220 430 H110"/>
+    <rect class="pad" x="70" y="368" width="40" height="24" rx="2"/>
+    <rect class="pad" x="70" y="418" width="40" height="24" rx="2"/>
+    <text x="90" y="408" text-anchor="middle">Taste A</text>
+    <text x="90" y="458" text-anchor="middle">Taste B</text>
+    <text class="t-sub" x="20" y="350">Kupferfläche ~2×2 cm</text>
+
+    <!-- 74AHCT125 -->
+    <path class="wd" d="M400 320 H460"/>
+    <rect class="box" x="460" y="280" width="120" height="90" rx="3"/>
+    <text class="t-title" x="520" y="326" text-anchor="middle">74AHCT125</text>
+    <text class="t-sub" x="520" y="342" text-anchor="middle">Pegelwandler</text>
+    <text class="t-pin" x="452" y="313" text-anchor="end">2</text>
+    <text class="t-pin" x="588" y="313">3</text>
+    <text class="t-pin" x="526" y="274">14</text>
+    <circle class="dot5" cx="520" cy="100" r="4"/>
+    <path class="w5" d="M520 100 V280"/>
+    <circle class="dot5" cx="520" cy="200" r="4"/>
+    <path class="w5" d="M520 200 H440 V222"/>
+    <path class="wg" d="M428 222 H452 M428 230 H452"/>
+    <path class="wg" d="M440 230 V250"/><use href="#gnd" x="440" y="250"/>
+    <text x="422" y="230" text-anchor="end">100 nF</text>
+    <path class="wg" d="M500 370 V395 H540 V370"/>
+    <use href="#gnd" x="520" y="395"/>
+    <text class="t-pin" x="494" y="386" text-anchor="end">7</text>
+    <text class="t-pin" x="546" y="386">1</text>
+    <text class="t-sub" x="590" y="392">4, 10, 13 → +5 V</text>
+    <text class="t-sub" x="590" y="407">5, 9, 12 → GND</text>
+
+    <!-- Widerstand -->
+    <path class="wd" d="M580 320 H620"/>
+    <rect class="part" x="620" y="313" width="44" height="14"/>
+    <text x="642" y="305" text-anchor="middle">390 Ω</text>
+    <path class="wd" d="M664 320 H720"/>
+
+    <!-- Panel oben -->
+    <rect class="box" x="720" y="260" width="160" height="200" rx="3"/>
+    <g class="led">
+      <circle cx="760" cy="420" r="2.5"/><circle cx="780" cy="420" r="2.5"/><circle cx="800" cy="420" r="2.5"/><circle cx="820" cy="420" r="2.5"/><circle cx="840" cy="420" r="2.5"/>
+      <circle cx="760" cy="434" r="2.5"/><circle cx="780" cy="434" r="2.5"/><circle cx="800" cy="434" r="2.5"/><circle cx="820" cy="434" r="2.5"/><circle cx="840" cy="434" r="2.5"/>
+    </g>
+    <text class="t-title" x="800" y="372" text-anchor="middle">Panel oben</text>
+    <text class="t-sub" x="800" y="390" text-anchor="middle">16×16 · 256 LED</text>
+    <text class="t-pin" x="728" y="324">DIN</text>
+    <text class="t-pin" x="872" y="324" text-anchor="end">DOUT</text>
+    <text class="t-pin" x="840" y="278" text-anchor="middle">5V</text>
+    <text class="t-pin" x="800" y="454" text-anchor="middle">GND</text>
+    <circle class="dot5" cx="840" cy="100" r="4"/>
+    <path class="w5" d="M840 100 V260"/>
+    <path class="wg" d="M800 460 V480"/><use href="#gnd" x="800" y="480"/>
+    <!-- Elko A -->
+    <circle class="dot5" cx="760" cy="100" r="4"/>
+    <path class="w5" d="M760 100 V145"/>
+    <path class="wg" d="M748 145 H772"/>
+    <path class="wg" d="M748 157 Q760 149 772 157"/>
+    <path class="wg" d="M760 153 V180"/><use href="#gnd" x="760" y="180"/>
+    <text class="note5" x="776" y="141">+</text>
+    <text x="742" y="152" text-anchor="end">1000 µF</text>
+    <text class="t-sub" x="742" y="166" text-anchor="end">≥ 10 V</text>
+
+    <!-- Kette -->
+    <path class="wd" d="M880 320 H920"/>
+
+    <!-- Panel unten -->
+    <rect class="box" x="920" y="260" width="160" height="200" rx="3"/>
+    <g class="led">
+      <circle cx="960" cy="420" r="2.5"/><circle cx="980" cy="420" r="2.5"/><circle cx="1000" cy="420" r="2.5"/><circle cx="1020" cy="420" r="2.5"/><circle cx="1040" cy="420" r="2.5"/>
+      <circle cx="960" cy="434" r="2.5"/><circle cx="980" cy="434" r="2.5"/><circle cx="1000" cy="434" r="2.5"/><circle cx="1020" cy="434" r="2.5"/><circle cx="1040" cy="434" r="2.5"/>
+    </g>
+    <text class="t-title" x="1000" y="372" text-anchor="middle">Panel unten</text>
+    <text class="t-sub" x="1000" y="390" text-anchor="middle">16×16 · 256 LED</text>
+    <text class="t-pin" x="928" y="324">DIN</text>
+    <text class="t-pin" x="1040" y="278" text-anchor="middle">5V</text>
+    <text class="t-pin" x="1000" y="454" text-anchor="middle">GND</text>
+    <path class="wg" d="M1000 460 V480"/><use href="#gnd" x="1000" y="480"/>
+    <!-- Elko B -->
+    <circle class="dot5" cx="960" cy="100" r="4"/>
+    <path class="w5" d="M960 100 V145"/>
+    <path class="wg" d="M948 145 H972"/>
+    <path class="wg" d="M948 157 Q960 149 972 157"/>
+    <path class="wg" d="M960 153 V180"/><use href="#gnd" x="960" y="180"/>
+    <text class="note5" x="976" y="141">+</text>
+    <text x="942" y="152" text-anchor="end">1000 µF</text>
+    <text class="t-sub" x="942" y="166" text-anchor="end">≥ 10 V</text>
+    <text class="t-sub" x="900" y="520" text-anchor="middle">Prototyp mit einer Matrix: Panel unten weglassen</text>
+
+    <!-- IMU -->
+    <path class="w33" d="M400 470 H470"/>
+    <path class="wi" d="M400 500 H470"/>
+    <path class="wi" d="M400 525 H470"/>
+    <rect class="box-later" x="470" y="450" width="150" height="95" rx="3"/>
+    <text class="t-pin" x="478" y="474">3V3</text>
+    <text class="t-pin" x="478" y="504">SDA</text>
+    <text class="t-pin" x="478" y="529">SCL</text>
+    <text class="t-title" x="568" y="494" text-anchor="middle">ICM-20948</text>
+    <text class="t-sub" x="568" y="510" text-anchor="middle">Lagesensor</text>
+    <path class="wg" d="M590 545 V560"/><use href="#gnd" x="590" y="560"/>
+  </svg>
+  </div>
+
+  <div class="legend">
+    <span><i style="border-color:var(--v5)"></i>+5 V (dick)</span>
+    <span><i style="border-color:var(--gnd)"></i>Masse ⏚, alle verbunden</span>
+    <span><i style="border-color:var(--data)"></i>LED-Daten</span>
+    <span><i style="border-color:var(--v33);border-top-style:dashed"></i>3,3 V</span>
+    <span><i style="border-color:var(--i2c);border-top-style:dashed"></i>I²C</span>
+    <span><i style="border-color:var(--touch);border-top-style:dashed"></i>Touch</span>
+  </div>
+
+  <div class="cols">
+    <section>
+      <h2>74AHCT125 (DIP-14)</h2>
+      <table>
+        <tr><th>Pin</th><th>Anschluss</th></tr>
+        <tr><td>14 VCC</td><td>+5 V, 100 nF direkt daneben nach GND</td></tr>
+        <tr><td>7 GND</td><td>Masse</td></tr>
+        <tr><td>1 1OE</td><td>GND (Puffer 1 eingeschaltet)</td></tr>
+        <tr><td>2 1A</td><td>GPIO16 vom ESP</td></tr>
+        <tr><td>3 1Y</td><td>über 390 Ω (330–470 Ω) zu DIN Panel oben</td></tr>
+        <tr><td>4, 10, 13</td><td>+5 V (übrige Puffer aus)</td></tr>
+        <tr><td>5, 9, 12</td><td>GND (übrige Eingänge nicht offen lassen)</td></tr>
+        <tr><td>6, 8, 11</td><td>frei</td></tr>
+      </table>
+    </section>
+    <section>
+      <h2>Vor dem ersten Einschalten</h2>
+      <ol>
+        <li>Mit dem Multimeter die Polung an der Hohlbuchse prüfen: Mitte +5 V?</li>
+        <li>Elkos richtig herum: der Streifen auf dem Gehäuse ist Minus.</li>
+        <li>Alle Massen verbunden: Netzteil, ESP, Pegelwandler, Panels, Sensor. Die LED-Masse dick direkt zum Netzteil führen, nicht über den ESP oder das Steckbrett.</li>
+        <li>Den Sensor nur an 3V3 anschließen, nie an 5 V.</li>
+        <li>Der Widerstand gehört nah an DIN, die Datenleitung vom Pegelwandler zum Panel sollte kurz sein.</li>
+        <li>Laut <code>config.h</code> (<code>CHAIN_TOP_PANEL_FIRST 1</code>) laufen die Daten zuerst ins obere Panel. Mit <code>t</code> auf der Konsole prüfen.</li>
+        <li>Erst mit USB flashen, dann das Netzteil dazu. Die Schottky-Diode verhindert, dass beide Quellen gegeneinander arbeiten.</li>
+      </ol>
+    </section>
+  </div>
+</main>
