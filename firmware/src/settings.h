@@ -11,7 +11,7 @@ static const uint8_t N_LIFE_SPEED = sizeof(LIFE_SPEEDS);
 
 struct Settings {
   uint8_t brightIdx = 2;
-  uint8_t durIdx = 2;
+  uint8_t durIdx = 0;          // Sanduhr-Laufzeit: Index in DURATIONS_S (0 = 1 min)
   String ssid, pass;
   String channel = "stabil";   // Update-Kanal: "stabil" oder "test"
   uint8_t otaMinute = 0;       // zufällige Minute im Nachtfenster, damit nicht alle gleichzeitig laden

@@ -22,10 +22,12 @@ später per Update übers Internet, nachts automatisch.
 |---|---|
 | Umdrehen | Sand läuft in die andere Hälfte |
 | Taste A kurz | Helligkeit (5 Stufen) |
-| Taste B kurz | Sanduhr: Laufzeit 1 / 3 / 5 / 10 / 15 / 30 min, wird kurz als Zahl gezeigt; Game of Life: Geschwindigkeit 1 / 2 / 4 / 6 / 10 / 15 Generationen/s |
+| Taste B kurz | Sanduhr: Laufzeit 1 (Standard) / 3 / 5 / 10 / 15 / 30 min, wird kurz als Zahl gezeigt; Game of Life: Geschwindigkeit 1 / 2 / 4 / 6 / 10 / 15 Generationen/s |
 | Taste A 5 s | Betriebsart wechseln: Sanduhr ↔ Game of Life (wird gespeichert) |
 | Taste B 5 s | jetzt nach Updates suchen |
 | A + B 5 s | WLAN einrichten: WLAN-Symbol blinkt, Handy mit „Sanduhr-XXXX“ verbinden, Netz wählen |
+
+Ohne Lagesensor (Prototyp) dreht sich die Sanduhr von selbst um, sobald der Sand durchgelaufen ist.
 
 Ohne WLAN läuft die Sanduhr ganz normal, sie bekommt dann nur keine Updates.
 

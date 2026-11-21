@@ -239,6 +239,19 @@ void loop() {
       gy = Imu::gy();
     }
     Sand::step(gx, gy, dt, Sand::count() / (float)settings.durationS());
+    // Ohne Sensor (Prototyp) dreht sich die Sanduhr selbst um, sobald oben alles durchgelaufen ist
+    // (spätestens nach doppelter Laufzeit, falls ein Korn oben hängen bleibt)
+    static uint32_t emptySince = 0, lastTurn = 0;
+    if (!Imu::ok() && !manualPose) {
+      bool empty = Sand::upperCount() == 0;
+      if (empty && !emptySince) emptySince = now;
+      if (!empty) emptySince = 0;
+      if ((emptySince && now - emptySince > 3000) || now - lastTurn > 2000UL * settings.durationS() + 10000) {
+        Sand::turn();
+        emptySince = 0;
+        lastTurn = now;
+      }
+    }
     Leds::clear();
     Sand::render();
     drawOverlay();

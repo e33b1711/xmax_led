@@ -84,6 +84,25 @@ void refill() { place(false); }
 
 int count() { return nGrains; }
 
+int upperCount() {
+  int n = 0;
+  for (int i = 0; i < nGrains; i++) n += half((int)grains[i].y) == 0;
+  return n;
+}
+
+void turn() {
+  memset(occ, 0, sizeof(occ));
+  for (int i = 0; i < nGrains; i++) {
+    Grain &g = grains[i];
+    int cx = (int)g.x, cy = (int)g.y;   // Zelle spiegeln, Lage in der Zelle mitdrehen
+    g.x = (W - 1 - cx) + fminf(0.999f, 1 - (g.x - cx));
+    g.y = (H - 1 - cy) + fminf(0.999f, 1 - (g.y - cy));
+    g.vx = -g.vx; g.vy = -g.vy;
+    occ[idx((int)g.x, (int)g.y)] = i + 1;
+  }
+  tokens = 0;
+}
+
 void step(float gx, float gy, float dt, float grainsPerSecond) {
   tokens = fminf(1.5f, tokens + grainsPerSecond * dt);
   float gl = sqrtf(gx * gx + gy * gy);

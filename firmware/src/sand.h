@@ -9,4 +9,6 @@ void refill();                        // Sand wieder in die (in Weltrichtung) ob
 void step(float gx, float gy, float dt, float grainsPerSecond);
 void render();
 int count();
+int upperCount();                     // Körner in der oberen Hälfte der Matrix
+void turn();                          // Sanduhr umdrehen: alle Körner um 180° drehen
 }
