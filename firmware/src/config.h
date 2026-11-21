@@ -17,11 +17,12 @@
 #define NUM_LEDS_MAX (MATRIX_W * MATRIX_H_MAX)
 #define LED_PIN 16
 
-// Verdrahtung innerhalb eines Panels (Schlangenlinien). Werte wie bei der HA-Matrix, wenn der
-// Aufdruck lesbar ist: erste LED unten links, unterste Zeile links->rechts, darüber rechts->links.
-// Stimmt das Testbild nicht, hier anpassen.
-#define PANEL_ROWS_FROM_BOTTOM 1
-#define PANEL_FIRST_ROW_LEFT_TO_RIGHT 1
+// Verdrahtung innerhalb eines Panels (Schlangenlinien). In der Sanduhr ist jedes Panel um 180°
+// gedreht eingebaut: erste LED oben rechts, oberste Zeile rechts->links, darunter links->rechts.
+// (1/1 wäre: erste LED unten links, unterste Zeile links->rechts.) Stimmt das Testbild nicht,
+// hier anpassen.
+#define PANEL_ROWS_FROM_BOTTOM 0
+#define PANEL_FIRST_ROW_LEFT_TO_RIGHT 0
 // Kette: 1 = Daten gehen zuerst in das obere Panel, dann ins untere.
 #define CHAIN_TOP_PANEL_FIRST 1
 
